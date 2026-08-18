@@ -25,7 +25,7 @@ line, without keeping a browser tab open or clicking anything.
 ## Install from source
 
 ```bash
-git clone <this repo>
+git clone https://github.com/edward-sia/llm-usage-tracker.git
 cd llm-usage-tracker
 make install
 ```
@@ -33,6 +33,15 @@ make install
 `make install` builds a release binary, wraps it in `ClaudeUsageBar.app`, ad-hoc
 signs it, copies it to `/Applications`, and launches it. Turn on **Launch at
 login** from the click menu if you want it always there.
+
+### Install with Claude Code (or any AI coding agent)
+
+If you use an AI coding agent, point it at this repo and ask it to install the
+app — the full recipe, with verification steps, is in
+[`AGENTS.md`](AGENTS.md). A prompt like this is enough:
+
+> Clone https://github.com/edward-sia/llm-usage-tracker, read AGENTS.md, and
+> follow it to build and install Claude Usage Bar on my Mac.
 
 Other targets: `make test` (unit tests), `make run` (build and launch from
 `build/`), `make clean`.
