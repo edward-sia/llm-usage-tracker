@@ -112,3 +112,114 @@ public enum Formatting {
         segments.map(\.text).joined(separator: separator)
     }
 }
+
+// MARK: - Time, bars, menu, tooltip, errors
+
+extension Formatting {
+    public static let usagePageURL = URL(string: "https://claude.ai/settings/usage")!
+    public static let rateLimitBackoffDescription = "5 min"
+
+    /// "4h 22m", "59m", "<1m", or "now" for past dates.
+    public static func countdown(to date: Date, from now: Date) -> String {
+        let seconds = Int(date.timeIntervalSince(now))
+        if seconds <= 0 { return "now" }
+        if seconds < 60 { return "<1m" }
+        let minutes = seconds / 60
+        let hours = minutes / 60
+        let remainder = minutes % 60
+        return hours == 0 ? "\(remainder)m" : "\(hours)h \(remainder)m"
+    }
+
+    /// nil → nil; past → "resets now"; within 24 h → "resets in 4h 22m"; else "resets Sun 11:59 PM"
+    /// (weekday + localized short time, 12/24-hour follows the locale).
+    public static func resetText(for date: Date?, now: Date, timeZone: TimeZone = .current, locale: Locale = .current) -> String? {
+        guard let date else { return nil }
+        let interval = date.timeIntervalSince(now)
+        if interval <= 0 { return "resets now" }
+        if interval < 24 * 3600 { return "resets in \(countdown(to: date, from: now))" }
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.timeZone = timeZone
+        formatter.setLocalizedDateFormatFromTemplate("EEE jmm")
+        return "resets \(formatter.string(from: date))"
+    }
+
+    /// "just now" (< 5 s), "30 s ago", "3 min ago", "2 h ago". Never negative.
+    public static func agoText(since date: Date, now: Date) -> String {
+        let seconds = max(0, Int(now.timeIntervalSince(date)))
+        if seconds < 5 { return "just now" }
+        if seconds < 60 { return "\(seconds) s ago" }
+        if seconds < 3600 { return "\(seconds / 60) min ago" }
+        return "\(seconds / 3600) h ago"
+    }
+
+    /// Ten-cell text bar, rounded to the nearest cell. Percent is clamped to 0…100.
+    public static func bar(percent: Int, width: Int = 10) -> String {
+        let clamped = min(max(percent, 0), 100)
+        let filled = Int((Double(clamped) / 100 * Double(width)).rounded())
+        return String(repeating: "▓", count: filled) + String(repeating: "░", count: width - filled)
+    }
+
+    public struct MenuRow: Equatable, Sendable {
+        public let label: String
+        public let percent: Int
+        public let bar: String
+        public let reset: String?
+        public init(label: String, percent: Int, bar: String, reset: String?) {
+            self.label = label
+            self.percent = percent
+            self.bar = bar
+            self.reset = reset
+        }
+    }
+
+    public static func menuRows(for snapshot: UsageSnapshot, now: Date, timeZone: TimeZone = .current, locale: Locale = .current) -> [MenuRow] {
+        snapshot.buckets.map { bucket in
+            MenuRow(label: longLabel(for: bucket.kind),
+                    percent: bucket.percent,
+                    bar: bar(percent: bucket.percent),
+                    reset: resetText(for: bucket.resetsAt, now: now, timeZone: timeZone, locale: locale))
+        }
+    }
+
+    /// One monospaced menu line: label padded to `labelWidth`, percent right-aligned to 3 chars.
+    public static func menuLine(_ row: MenuRow, labelWidth: Int) -> String {
+        let padded = row.label.padding(toLength: max(labelWidth, row.label.count), withPad: " ", startingAt: 0)
+        let percentText = "\(row.percent)%"
+        let alignedPercent = String(repeating: " ", count: max(0, 4 - percentText.count)) + percentText
+        var line = "\(padded)  \(alignedPercent)  \(row.bar)"
+        if let reset = row.reset { line += "   \(reset)" }
+        return line
+    }
+
+    public static func errorMessage(_ error: UsageError, last: UsageSnapshot?, now: Date) -> String {
+        let suffix = last.map { " Last updated \(agoText(since: $0.fetchedAt, now: now))." } ?? ""
+        switch error {
+        case .notSignedIn: return "Not signed in to Claude Code. Run `claude` in a terminal and log in."
+        case .unauthorized: return "Token expired. Open Claude Code to refresh it."
+        case .rateLimited: return "Rate limited. Next refresh in \(rateLimitBackoffDescription)."
+        case .http(let code): return "Usage API error (HTTP \(code)).\(suffix)"
+        case .decoding: return "Unexpected response from the usage API.\(suffix)"
+        case .offline: return "Offline.\(suffix)"
+        }
+    }
+
+    public static func tooltip(for state: FetchState, now: Date, timeZone: TimeZone = .current, locale: Locale = .current) -> String {
+        var lines: [String] = []
+        if let error = state.error {
+            lines.append(errorMessage(error, last: state.snapshot, now: now))
+        }
+        if let snapshot = state.snapshot {
+            for bucket in snapshot.buckets {
+                var line = "\(longLabel(for: bucket.kind)): \(bucket.percent)%"
+                if let reset = resetText(for: bucket.resetsAt, now: now, timeZone: timeZone, locale: locale) {
+                    line += " — \(reset)"
+                }
+                lines.append(line)
+            }
+            lines.append("Updated \(agoText(since: snapshot.fetchedAt, now: now))")
+        }
+        if lines.isEmpty { lines.append("Loading Claude usage…") }
+        return lines.joined(separator: "\n")
+    }
+}
