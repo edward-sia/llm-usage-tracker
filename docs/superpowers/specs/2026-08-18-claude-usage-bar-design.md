@@ -166,25 +166,29 @@ Once a fetch succeeds the `⚠︎` disappears.
 
 ## Structure
 
-Swift Package with one executable target and one test target.
+Swift Package with a library target for all logic (no AppKit), an executable
+target for the menu bar UI, and one test target that depends only on the
+library.
 
 ```
 Package.swift
-Sources/ClaudeUsageBar/
-  App.swift                   @main. NSApplication as .accessory (no Dock icon).
-                              Builds the object graph: CredentialStore → UsageAPIClient
-                              → UsagePoller → StatusItemController.
-  StatusItemController.swift  Owns the NSStatusItem. Renders title, tooltip, menu from
-                              a FetchState. Handles menu actions.
-  UsagePoller.swift           Timer + wake observer. Calls the client, applies the 401
-                              retry and 429 backoff, publishes FetchState on the main thread.
-  UsageAPIClient.swift        Builds the request, performs it with URLSession, decodes JSON
-                              into UsageSnapshot. Injectable URLSession for tests.
+Sources/ClaudeUsageBarCore/     library, no AppKit — everything here is unit-tested
+  Models.swift                UsageBucket, UsageSnapshot, FetchState, UsageError.
   CredentialStore.swift       Reads and parses the token (Keychain via `security`, then
                               ~/.claude/.credentials.json). Injectable command runner for tests.
-  Models.swift                UsageBucket, UsageSnapshot, FetchState, UsageError.
-  Formatting.swift            Title string + colors, tooltip, menu rows, countdown text,
-                              bar string. Pure functions.
+  UsageResponseDecoder.swift  JSON → UsageSnapshot (limits[] first, top-level fallback).
+  UsageAPIClient.swift        Builds the request, performs it with URLSession, maps HTTP
+                              status to UsageError. Injectable URLSession for tests.
+  Formatting.swift            Title segments + severity, tooltip, menu rows, countdown text,
+                              bar string, error messages. Pure functions. Colors are a
+                              `Severity` enum here; the app maps them to NSColor.
+  UsagePoller.swift           Timer, 401 retry, 429 backoff, publishes FetchState on the
+                              main actor. Token provider and fetcher are injected closures.
+Sources/ClaudeUsageBar/         executable, AppKit
+  main.swift                  NSApplication as .accessory (no Dock icon). Builds the object
+                              graph, registers the wake-from-sleep observer, starts the poller.
+  StatusItemController.swift  Owns the NSStatusItem. Renders title, tooltip, menu from
+                              a FetchState. Handles menu actions.
   Preferences.swift           Refresh interval (UserDefaults) and launch-at-login (SMAppService).
 Tests/ClaudeUsageBarTests/
   Fixtures/usage-response.json  the response above (no token)
