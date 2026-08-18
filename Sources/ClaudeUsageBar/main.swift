@@ -24,7 +24,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { _ in
-            Task { @MainActor in await poller.refresh() }
+            // Opportunistic: skips if a fetch just happened before sleep or a backoff is active.
+            Task { @MainActor in await poller.refreshIfStale() }
         }
 
         poller.start()

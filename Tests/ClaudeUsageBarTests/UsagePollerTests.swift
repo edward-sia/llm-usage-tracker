@@ -141,4 +141,46 @@ final class UsagePollerTests: XCTestCase {
         XCTAssertEqual(poller.state, .loaded(snapshot(42)))
         poller.stop()
     }
+
+    // The snapshot(_) helper stamps fetchedAt = 1970-01-01, so `now` offsets below are the
+    // age of the last good numbers in seconds.
+    private let epoch = Date(timeIntervalSince1970: 0)
+
+    func testRefreshIfStaleSkipsWhenNumbersAreFresh() async {
+        let fetcher = ScriptedFetcher([.success(snapshot(25)), .success(snapshot(99))])
+        let poller = UsagePoller(interval: 60, tokenProvider: { "tok" }, fetcher: fetcher.fetch)
+        await poller.refresh()                                      // loaded, fetchedAt = epoch
+        await poller.refreshIfStale(olderThan: 20, now: epoch.addingTimeInterval(10))
+        XCTAssertEqual(fetcher.tokens.count, 1, "10s < 20s: must not fetch again")
+        XCTAssertEqual(poller.state, .loaded(snapshot(25)))
+    }
+
+    func testRefreshIfStaleFetchesWhenNumbersAreStale() async {
+        let fetcher = ScriptedFetcher([.success(snapshot(25)), .success(snapshot(99))])
+        let poller = UsagePoller(interval: 60, tokenProvider: { "tok" }, fetcher: fetcher.fetch)
+        await poller.refresh()
+        await poller.refreshIfStale(olderThan: 20, now: epoch.addingTimeInterval(30))
+        XCTAssertEqual(fetcher.tokens.count, 2, "30s >= 20s: must fetch")
+        XCTAssertEqual(poller.state, .loaded(snapshot(99)))
+    }
+
+    func testRefreshIfStaleFetchesWhenNoSnapshotYet() async {
+        let fetcher = ScriptedFetcher([.success(snapshot(25))])
+        let poller = UsagePoller(interval: 60, tokenProvider: { "tok" }, fetcher: fetcher.fetch)
+        await poller.refreshIfStale(olderThan: 20, now: epoch.addingTimeInterval(5))
+        XCTAssertEqual(fetcher.tokens.count, 1, "no numbers yet: must fetch")
+        XCTAssertEqual(poller.state, .loaded(snapshot(25)))
+    }
+
+    func testRefreshIfStaleSkipsWhileBackingOff() async {
+        // A 429 puts the poller in backoff; an opportunistic refresh must not poke the endpoint,
+        // even though there are no fresh numbers to reuse.
+        let fetcher = ScriptedFetcher([.failure(.rateLimited), .success(snapshot(50))])
+        let poller = UsagePoller(interval: 60, tokenProvider: { "tok" }, fetcher: fetcher.fetch)
+        await poller.refresh()
+        XCTAssertEqual(poller.state, .failed(.rateLimited, last: nil))
+        await poller.refreshIfStale(olderThan: 0, now: epoch.addingTimeInterval(9_999))
+        XCTAssertEqual(fetcher.tokens.count, 1, "backing off: must not fetch on an opportunistic trigger")
+        XCTAssertEqual(poller.state, .failed(.rateLimited, last: nil))
+    }
 }

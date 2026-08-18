@@ -13,7 +13,7 @@ times, without clicking anything:
 ```
 
 It reads the OAuth token that Claude Code already stores in the macOS Keychain,
-polls Anthropic's usage endpoint every 60 seconds, and renders the three limits
+polls Anthropic's usage endpoint every 90 seconds, and renders the three limits
 (5-hour session, weekly all-models, weekly per-model such as Fable) as colored
 text in the menu bar. Clicking opens a menu with bars, reset times, and a few
 controls. There is no Dock icon, no window, and no login flow of its own.
@@ -30,7 +30,7 @@ controls. There is no Dock icon, no window, and no login flow of its own.
 |---|---|---|
 | Stack | Swift, AppKit `NSStatusItem`, Swift Package Manager, macOS 14+ | Tiny binary, no runtime, native look, easy to build from source and open source. No Xcode project needed. |
 | Menu bar text | All three limits, compact, colored by threshold | Fits in the menu bar; the whole point is seeing all numbers at a glance. |
-| Refresh interval | 60 s default; user-selectable 30 s / 60 s / 3 min / 5 min | Numbers move in whole percents; 60 s is fresh enough. Also refreshes on wake and on manual click. |
+| Refresh interval | 90 s default; user-selectable 60 s / 90 s / 3 min / 5 min | Numbers move in whole percents; the endpoint is shared and rate-limited, so 60 s is the floor. Also refreshes on wake, on manual click, and on menu open (debounced). |
 | Scope | Menu bar only | The floating overlay is a later, additive feature. |
 | Credentials | Read-only. Never refresh, never write to the Keychain | Refreshing could rotate the refresh token out from under Claude Code and log the user out. Claude Code refreshes on its own; we re-read. |
 | Keychain access | Shell out to `security find-generic-password` | Same path Claude Code and `ccstatusline` use; it did not trigger a permission prompt when tested. Using the Security framework directly from a new binary would prompt. |
@@ -123,7 +123,7 @@ Updated 30 s ago              Refresh
 Open usage page (claude.ai)
 ────────────────────────────────────
 ✓ Launch at login
-  Refresh interval ▸ 30 s / 60 s / 3 min / 5 min
+  Refresh interval ▸ 60 s / 90 s / 3 min / 5 min
 ────────────────────────────────────
 Quit
 ```

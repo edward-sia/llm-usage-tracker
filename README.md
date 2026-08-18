@@ -73,10 +73,20 @@ xattr -dr com.apple.quarantine /Applications/ClaudeUsageBar.app
 1. Reads the OAuth access token that Claude Code stores in the macOS Keychain
    (item `Claude Code-credentials`), the same way Claude Code's own status line
    integrations do. Falls back to `~/.claude/.credentials.json`.
-2. Calls `GET https://api.anthropic.com/api/oauth/usage` every 60 seconds (or
-   30 s / 3 min / 5 min from the menu), on wake from sleep, and when you click
-   Refresh.
+2. Calls `GET https://api.anthropic.com/api/oauth/usage` every 90 seconds (or
+   60 s / 3 min / 5 min from the menu), on wake from sleep, when you click
+   Refresh, and once when you open the menu (only if the numbers are more than
+   ~20 seconds old).
 3. Renders the `limits` from the response in the menu bar.
+
+That usage endpoint is shared and rate-limited — it also backs the claude.ai
+usage page and the Claude Code status line. If too many requests go out on your
+account at once (this app, the Claude Code status line, and other tools all use
+the same token), it returns HTTP 429; the app then shows `Rate limited. Next
+refresh in 5 min.`, keeps your last numbers, and resumes polling after the
+backoff. To be a good citizen it never polls faster than 60 s, skips the
+menu-open fetch while numbers are still fresh, and does not poll at all during
+the backoff.
 
 The app is read-only: it never writes to the Keychain and never refreshes the
 token itself (Claude Code does that). If the token expires, the app shows a

@@ -52,6 +52,19 @@ public final class UsagePoller {
         timer = nil
     }
 
+    /// An opportunistic refresh — triggered by the user glancing at the menu or by wake from
+    /// sleep, not by the timer. It protects the shared, rate-limited usage endpoint:
+    /// it does nothing while a 429 backoff is in effect, and nothing if the last good numbers
+    /// are younger than `staleAfter`. Reopening the menu rapidly therefore reuses the numbers
+    /// it just fetched instead of firing a request each time. The timer and the manual Refresh
+    /// button still call `refresh()` directly, so periodic polling and explicit refreshes are
+    /// never suppressed.
+    public func refreshIfStale(olderThan staleAfter: TimeInterval = 20, now: Date = Date()) async {
+        if backingOff { return }
+        if let fetchedAt = state.snapshot?.fetchedAt, now.timeIntervalSince(fetchedAt) < staleAfter { return }
+        await refresh()
+    }
+
     /// One fetch cycle. Calls made while a fetch is in flight are ignored.
     public func refresh() async {
         guard !inFlight else { return }

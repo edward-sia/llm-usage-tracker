@@ -77,10 +77,11 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
     func menuWillOpen(_ menu: NSMenu) {
         isMenuOpen = true
         // Fetch the moment the user looks, so the panel shows current numbers instead of
-        // whatever the last background tick left (which App Nap can delay by minutes). The
-        // open menu updates itself when this returns (see `render`). The poller's in-flight
-        // guard makes a redundant fetch a no-op if one is already running.
-        Task { await poller.refresh() }
+        // whatever the last background tick left (which App Nap can delay by minutes). This is
+        // opportunistic: it does nothing during a 429 backoff, and nothing if the numbers are
+        // already fresh, so reopening the menu repeatedly does not hammer the rate-limited
+        // endpoint. The open menu updates itself when a fetch returns (see `render`).
+        Task { await poller.refreshIfStale() }
     }
 
     func menuDidClose(_ menu: NSMenu) {
