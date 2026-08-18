@@ -53,6 +53,18 @@ final class UsageResponseDecoderTests: XCTestCase {
         XCTAssertEqual(snapshot.buckets.map(\.kind), [.session, .weeklyAll, .weeklyScoped(model: "Fable"), .other("mystery_limit")])
     }
 
+    func testMultipleScopedLimitsKeepAPIOrder() throws {
+        let json = #"""
+        {"limits":[
+          {"kind":"weekly_scoped","percent":5,"scope":{"model":{"display_name":"Opus"}}},
+          {"kind":"weekly_scoped","percent":17,"scope":{"model":{"display_name":"Fable"}}},
+          {"kind":"session","percent":25}
+        ]}
+        """#
+        let snapshot = try UsageResponseDecoder.decode(Data(json.utf8), fetchedAt: now)
+        XCTAssertEqual(snapshot.buckets.map(\.kind), [.session, .weeklyScoped(model: "Opus"), .weeklyScoped(model: "Fable")])
+    }
+
     func testScopedLimitWithoutModelNameHasNilModel() throws {
         let json = #"{"limits":[{"kind":"weekly_scoped","percent":9,"scope":{"model":null}}]}"#
         let snapshot = try UsageResponseDecoder.decode(Data(json.utf8), fetchedAt: now)

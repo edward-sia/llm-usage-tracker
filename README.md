@@ -38,7 +38,10 @@ Other targets: `make test` (unit tests), `make run` (build and launch from
 `build/`), `make clean`.
 
 If you download a pre-built zip instead of building, macOS will quarantine it.
-Remove the flag before launching:
+This build is ad-hoc signed, not notarized, so Gatekeeper flags any copy that
+arrived via a browser or other quarantine-aware app; a copy you build yourself
+with `make install` is never quarantined in the first place. Remove the flag
+before launching a downloaded copy:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/ClaudeUsageBar.app
@@ -71,7 +74,7 @@ third-party server, and no storage beyond the refresh-interval preference.
 |---|---|---|
 | `⚠︎ not signed in` | No Claude Code credentials found | Run `claude` in a terminal and log in |
 | numbers followed by `⚠︎` | Last refresh failed; numbers are stale | Hover or click for the reason (offline, token expired, rate limited, API error) |
-| `…` | First fetch has not finished | Wait a second; hover shows "Loading…" |
+| `…` | First fetch has not finished | Wait a second; hover shows "Loading Claude usage…" |
 
 "Launch at login" only works when the app runs from `/Applications` (i.e. after
 `make install`), because macOS registers login items by bundle.

@@ -182,7 +182,7 @@ extension Formatting {
         }
     }
 
-    /// One monospaced menu line: label padded to `labelWidth`, percent right-aligned to 3 chars.
+    /// One monospaced menu line: label padded to `labelWidth`, percent right-aligned to 4 chars.
     public static func menuLine(_ row: MenuRow, labelWidth: Int) -> String {
         let padded = row.label.padding(toLength: max(labelWidth, row.label.count), withPad: " ", startingAt: 0)
         let percentText = "\(row.percent)%"

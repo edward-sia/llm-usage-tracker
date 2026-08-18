@@ -16,8 +16,8 @@
   "seven_day_oauth_apps": null,
   "seven_day_opus": null,
   "seven_day_sonnet": null,
-  "seven_day_cowork": null,
-  "nimbus_quill": {
+  "seven_day_other": null,
+  "future_bucket_example": {
     "utilization": 0,
     "resets_at": null,
     "limit_dollars": null,

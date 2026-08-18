@@ -88,4 +88,57 @@ final class UsagePollerTests: XCTestCase {
         await poller.refresh()
         XCTAssertEqual(poller.state, .failed(.offline, last: nil))
     }
+
+    func testRateLimitBackoffDescriptionMatchesPoller() {
+        XCTAssertEqual(Formatting.rateLimitBackoffDescription, "\(Int(UsagePoller.rateLimitBackoff) / 60) min")
+    }
+
+    func testStartPollsRepeatedlyAndStopHalts() async {
+        let exp = XCTestExpectation(description: "polled at least 3 times")
+        exp.expectedFulfillmentCount = 3
+        var count = 0
+        let poller = UsagePoller(interval: 0.05, tokenProvider: { "tok" }, fetcher: { [self] _ in
+            count += 1
+            exp.fulfill()
+            return snapshot(1)
+        })
+        poller.start()
+        await fulfillment(of: [exp], timeout: 3)
+        poller.stop()
+        let countAtStop = count
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        XCTAssertEqual(count, countAtStop, "no fetch should happen after stop()")
+    }
+
+    func testRefreshIgnoresCallsWhileInFlight() async {
+        // Holds the continuation for the fetch currently in flight so the test can control
+        // exactly when it completes.
+        final class ContinuationBox: @unchecked Sendable {
+            var continuation: CheckedContinuation<UsageSnapshot, Error>?
+        }
+        let box = ContinuationBox()
+        var callCount = 0
+        let poller = UsagePoller(interval: 60, tokenProvider: { "tok" }, fetcher: { _ in
+            callCount += 1
+            return try await withCheckedThrowingContinuation { continuation in
+                box.continuation = continuation
+            }
+        })
+
+        async let a: Void = poller.refresh()
+        async let b: Void = poller.refresh()
+
+        var attempts = 0
+        while box.continuation == nil && attempts < 1000 {
+            await Task.yield()
+            attempts += 1
+        }
+        box.continuation?.resume(returning: snapshot(42))
+        await a
+        await b
+
+        XCTAssertEqual(callCount, 1, "the second concurrent refresh() must be ignored while one is in flight")
+        XCTAssertEqual(poller.state, .loaded(snapshot(42)))
+        poller.stop()
+    }
 }

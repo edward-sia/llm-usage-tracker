@@ -57,4 +57,19 @@ final class CredentialStoreTests: XCTestCase {
             XCTAssertEqual(error as? UsageError, .notSignedIn)
         }
     }
+
+    func testRunProcessTimesOutAndReturnsNil() {
+        let start = Date()
+        let result = CredentialStore.runProcess("/bin/sleep", ["5"], timeout: 0.3)
+        XCTAssertNil(result)
+        XCTAssertLessThan(Date().timeIntervalSince(start), 2, "a timed-out process must not block the caller")
+    }
+
+    func testRunProcessReturnsTrimmedStdout() {
+        XCTAssertEqual(CredentialStore.runProcess("/bin/echo", ["  hi  "]), "hi")
+    }
+
+    func testRunProcessReturnsNilOnNonZeroExit() {
+        XCTAssertNil(CredentialStore.runProcess("/bin/sh", ["-c", "exit 3"]))
+    }
 }

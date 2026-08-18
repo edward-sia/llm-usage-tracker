@@ -3,7 +3,7 @@ import ClaudeUsageBarCore
 
 /// Owns the NSStatusItem: renders the title/tooltip from FetchState and builds the click menu.
 @MainActor
-final class StatusItemController: NSObject, NSMenuDelegate {
+final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
     private let statusItem: NSStatusItem
     private let poller: UsagePoller
     private let preferences: Preferences
@@ -16,6 +16,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         self.preferences = preferences
         super.init()
 
+        statusItem.autosaveName = "ClaudeUsageBar"
         menu.delegate = self
         menu.autoenablesItems = false
         statusItem.menu = menu
@@ -30,7 +31,15 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         self.state = state
         guard let button = statusItem.button else { return }
         button.attributedTitle = Self.attributedTitle(Formatting.titleSegments(for: state))
-        button.toolTip = Formatting.tooltip(for: state, now: Date())
+        // Re-added on every render so the tracking rect follows the title's width. The tooltip
+        // text itself is computed lazily in `view(_:stringForToolTip:point:userData:)` at hover
+        // time, so the "Updated N s ago" text is never stale between polls.
+        button.removeAllToolTips()
+        button.addToolTip(button.bounds, owner: self, userData: nil)
+    }
+
+    func view(_ view: NSView, stringForToolTip tag: NSView.ToolTipTag, point: NSPoint, userData data: UnsafeMutableRawPointer?) -> String {
+        Formatting.tooltip(for: state, now: Date())
     }
 
     static func attributedTitle(_ segments: [TitleSegment]) -> NSAttributedString {

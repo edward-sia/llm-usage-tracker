@@ -26,6 +26,7 @@ final class UsageAPIClientTests: XCTestCase {
         XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer sk-ant-oat01-TEST")
         XCTAssertEqual(request.value(forHTTPHeaderField: "anthropic-beta"), "oauth-2025-04-20")
         XCTAssertEqual(request.timeoutInterval, 10)
+        XCTAssertEqual(request.cachePolicy, .reloadIgnoringLocalCacheData)
     }
 
     func testDecodesSuccessfulResponse() async throws {

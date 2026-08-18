@@ -3,8 +3,9 @@ import Foundation
 /// Turns the usage API JSON into a `UsageSnapshot`.
 ///
 /// The `limits` array is the primary source (it carries per-model limits such as Fable).
-/// If it is missing or empty, the top-level `five_hour` / `seven_day` objects are used.
-/// Every field is optional and unknown fields are ignored so API additions do not break us.
+/// If it is missing, empty, or yields no usable entry, the top-level `five_hour` / `seven_day`
+/// objects are used. Every field is optional and unknown fields are ignored so API additions do
+/// not break us.
 public enum UsageResponseDecoder {
     struct Response: Decodable {
         struct Bucket: Decodable {
