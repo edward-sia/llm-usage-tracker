@@ -16,6 +16,18 @@ bars, exact reset times, a refresh button, a link to the usage page, and setting
 It shows the same numbers as the claude.ai usage page and the Claude Code status
 line, without keeping a browser tab open or clicking anything.
 
+## Screenshots
+
+The menu bar item — one segment per limit, colored by how close you are:
+
+![Claude Usage Bar in the menu bar](docs/images/menubar.png)
+
+Click it for bars, exact reset times, and settings:
+
+![The dropdown menu](docs/images/menu.png)
+
+*(Rendered from the app's own fonts, colors, and output.)*
+
 ## Requirements
 
 - macOS 14 or newer

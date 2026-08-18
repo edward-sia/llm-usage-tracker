@@ -9,6 +9,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
     private let preferences: Preferences
     private let menu = NSMenu()
     private var state: FetchState = .idle
+    private var isMenuOpen = false
 
     init(poller: UsagePoller, preferences: Preferences) {
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -36,6 +37,9 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
         // time, so the "Updated N s ago" text is never stale between polls.
         button.removeAllToolTips()
         button.addToolTip(button.bounds, owner: self, userData: nil)
+        // If the menu is open, the fetch triggered by menuWillOpen just returned — rebuild the
+        // open menu so its rows and "Updated N ago" line show the fresh numbers immediately.
+        if isMenuOpen { rebuildMenu() }
     }
 
     func view(_ view: NSView, stringForToolTip tag: NSView.ToolTipTag, point: NSPoint, userData data: UnsafeMutableRawPointer?) -> String {
@@ -68,6 +72,19 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         rebuildMenu()
+    }
+
+    func menuWillOpen(_ menu: NSMenu) {
+        isMenuOpen = true
+        // Fetch the moment the user looks, so the panel shows current numbers instead of
+        // whatever the last background tick left (which App Nap can delay by minutes). The
+        // open menu updates itself when this returns (see `render`). The poller's in-flight
+        // guard makes a redundant fetch a no-op if one is already running.
+        Task { await poller.refresh() }
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        isMenuOpen = false
     }
 
     private func rebuildMenu() {
