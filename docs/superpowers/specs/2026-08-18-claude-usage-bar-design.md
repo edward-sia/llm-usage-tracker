@@ -67,7 +67,8 @@ anthropic-beta: oauth-2025-04-20
 
 **Response (fields we use).** The `limits` array is the primary source. The
 top-level `five_hour` / `seven_day` objects are a fallback if `limits` is
-missing or empty.
+missing, empty, or yields no usable entry (no `kind` + `percent`) — so a
+shape change in `limits` degrades to the two basic numbers instead of an error.
 
 ```json
 {
