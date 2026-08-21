@@ -25,8 +25,14 @@ public struct UsageBucket: Equatable, Sendable {
     }
 }
 
+/// What every provider's snapshot has in common: when it was fetched. The poller uses this
+/// to decide whether numbers are fresh enough to skip an opportunistic refresh.
+public protocol TimestampedSnapshot: Equatable, Sendable {
+    var fetchedAt: Date { get }
+}
+
 /// A successful read of the usage API, with buckets already in display order.
-public struct UsageSnapshot: Equatable, Sendable {
+public struct UsageSnapshot: TimestampedSnapshot {
     public let buckets: [UsageBucket]
     public let fetchedAt: Date
 
@@ -51,14 +57,14 @@ public enum UsageError: Error, Equatable, Sendable {
     case offline
 }
 
-/// The only thing the UI reads.
-public enum FetchState: Equatable, Sendable {
+/// The only thing the UI reads. Generic so Claude usage and OpenRouter credits share it.
+public enum FetchState<Snapshot: TimestampedSnapshot>: Equatable, Sendable {
     case idle
-    case loaded(UsageSnapshot)
+    case loaded(Snapshot)
     /// The last good snapshot (if any) travels with the error so the UI can keep showing numbers.
-    case failed(UsageError, last: UsageSnapshot?)
+    case failed(UsageError, last: Snapshot?)
 
-    public var snapshot: UsageSnapshot? {
+    public var snapshot: Snapshot? {
         switch self {
         case .idle: return nil
         case .loaded(let snapshot): return snapshot

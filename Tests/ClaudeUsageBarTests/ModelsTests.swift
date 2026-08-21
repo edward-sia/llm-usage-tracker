@@ -8,8 +8,9 @@ final class ModelsTests: XCTestCase {
     )
 
     func testIdleHasNoSnapshotOrError() {
-        XCTAssertNil(FetchState.idle.snapshot)
-        XCTAssertNil(FetchState.idle.error)
+        let state = FetchState<UsageSnapshot>.idle
+        XCTAssertNil(state.snapshot)
+        XCTAssertNil(state.error)
     }
 
     func testLoadedExposesSnapshot() {
@@ -25,7 +26,7 @@ final class ModelsTests: XCTestCase {
     }
 
     func testFailedWithoutLastSnapshot() {
-        let state = FetchState.failed(.notSignedIn, last: nil)
+        let state = FetchState<UsageSnapshot>.failed(.notSignedIn, last: nil)
         XCTAssertEqual(state.error, .notSignedIn)
         XCTAssertNil(state.snapshot)
     }

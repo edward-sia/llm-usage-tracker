@@ -7,16 +7,16 @@ import Foundation
 /// - The last good snapshot travels with every failure so the UI keeps showing numbers.
 /// - Wake-from-sleep is handled by the app calling `refresh()`; Core has no AppKit.
 @MainActor
-public final class UsagePoller {
+public final class UsagePoller<Snapshot: TimestampedSnapshot> {
     public typealias TokenProvider = () throws -> String
-    public typealias Fetcher = (_ token: String) async throws -> UsageSnapshot
+    public typealias Fetcher = (_ token: String) async throws -> Snapshot
 
-    public static let rateLimitBackoff: TimeInterval = 300
+    public static var rateLimitBackoff: TimeInterval { 300 }
 
-    public private(set) var state: FetchState = .idle {
+    public private(set) var state: FetchState<Snapshot> = .idle {
         didSet { onChange?(state) }
     }
-    public var onChange: ((FetchState) -> Void)?
+    public var onChange: ((FetchState<Snapshot>) -> Void)?
 
     public var interval: TimeInterval {
         didSet { if running { scheduleNext() } }
@@ -86,7 +86,7 @@ public final class UsagePoller {
         if running { scheduleNext() }
     }
 
-    private func fetchOnce(retryOnUnauthorized: Bool) async throws -> UsageSnapshot {
+    private func fetchOnce(retryOnUnauthorized: Bool) async throws -> Snapshot {
         let tokenProvider = self.tokenProvider
         // Off the main actor: the real provider shells out to `security`, which must not block the UI.
         let token = try await Task.detached(priority: .utility) { try tokenProvider() }.value

@@ -1,17 +1,20 @@
 # Claude Usage Bar
 
-A tiny macOS menu bar app that always shows your Claude subscription usage:
+A tiny macOS menu bar app that always shows your Claude subscription usage — and,
+if you use OpenRouter, your remaining credits:
 
 ```
-5h 25% · W 26% · F 17%
+5h 25% · W 26% · F 17% · OR $12.34
 ```
 
 - **5h** — the rolling 5-hour session limit
 - **W** — the weekly limit across all models
 - **F** (or another letter) — a weekly limit scoped to one model, e.g. Fable
+- **OR** — your OpenRouter credit balance (only shown when a key is found)
 
-Numbers turn amber at 50 % and red at 80 %. Hover for reset countdowns. Click for
-bars, exact reset times, a refresh button, a link to the usage page, and settings.
+Claude numbers turn amber at 50 % and red at 80 %; the OpenRouter balance turns
+amber below $5 and red below $1. Hover for reset countdowns. Click for bars,
+exact reset times, a refresh button, links to both usage pages, and settings.
 
 It shows the same numbers as the claude.ai usage page and the Claude Code status
 line, without keeping a browser tab open or clicking anything.
@@ -32,6 +35,8 @@ Click it for bars, exact reset times, and settings:
 
 - macOS 14 or newer
 - [Claude Code](https://claude.com/claude-code) installed and signed in (`claude` → log in). The app reuses that login.
+- Optional: an OpenRouter API key exported as `OPENROUTER_API_KEY` in your shell
+  config. Without one the app simply shows Claude usage only.
 - To build from source: Xcode Command Line Tools (`xcode-select --install`)
 
 ## Install from source
@@ -78,6 +83,12 @@ xattr -dr com.apple.quarantine /Applications/ClaudeUsageBar.app
    Refresh, and once when you open the menu (only if the numbers are more than
    ~20 seconds old).
 3. Renders the `limits` from the response in the menu bar.
+4. For OpenRouter, reads `OPENROUTER_API_KEY` from your shell config files
+   (`~/.zshrc`, `~/.zshenv`, `~/.zprofile`, `~/.bashrc`, `~/.bash_profile`,
+   `~/.profile` — first file with a usable line wins) and calls
+   `GET https://openrouter.ai/api/v1/credits` on the same schedule. The menu bar
+   shows credits purchased minus credits used. No key found means no segment —
+   nothing else changes.
 
 That usage endpoint is shared and rate-limited — it also backs the claude.ai
 usage page and the Claude Code status line. If too many requests go out on your
@@ -96,8 +107,10 @@ Code again.
 ## Privacy
 
 Nothing leaves your Mac except the request to Anthropic's usage endpoint,
-authenticated with your existing Claude Code token. There is no telemetry, no
-third-party server, and no storage beyond the refresh-interval preference.
+authenticated with your existing Claude Code token, and — only when you have an
+OpenRouter key — the request to OpenRouter's credits endpoint, authenticated
+with that key. There is no telemetry, no third-party server, and no storage
+beyond the refresh-interval preference.
 
 ## Troubleshooting
 
@@ -106,6 +119,8 @@ third-party server, and no storage beyond the refresh-interval preference.
 | `⚠︎ not signed in` | No Claude Code credentials found | Run `claude` in a terminal and log in |
 | numbers followed by `⚠︎` | Last refresh failed; numbers are stale | Hover or click for the reason (offline, token expired, rate limited, API error) |
 | `…` | First fetch has not finished | Wait a second; hover shows "Loading Claude usage…" |
+| no `OR` segment | No `OPENROUTER_API_KEY` found in shell config | Add `export OPENROUTER_API_KEY=…` to `~/.zshrc` (or another file the app reads — see How it works) |
+| `OR ⚠︎` | The OpenRouter credits fetch failed | Hover or click for the reason |
 
 "Launch at login" only works when the app runs from `/Applications` (i.e. after
 `make install`), because macOS registers login items by bundle.

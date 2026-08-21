@@ -8,14 +8,17 @@ moving on. Do not skip the verification steps.
 ## What you are installing
 
 A native macOS menu bar app that shows the user's Claude subscription usage
-(`5h 25% · W 26% · F 17%`). It reads the OAuth token that Claude Code already
-stores in the macOS Keychain and polls Anthropic's usage endpoint. It is
-read-only: it never writes to the Keychain and never refreshes the token.
+(`5h 25% · W 26% · F 17%`) and, when the user has an OpenRouter API key in
+their shell config, their remaining OpenRouter credits (`· OR $12.34`). It
+reads the OAuth token that Claude Code already stores in the macOS Keychain
+and polls Anthropic's usage endpoint; the OpenRouter key is read from files
+like `~/.zshrc`. It is read-only: it never writes to the Keychain and never
+refreshes the token.
 
 ## Safety rules for the agent
 
-- **Never print, echo, or log the access token.** No step here requires
-  reading the token value; do not add one that does.
+- **Never print, echo, or log the access token or the OpenRouter API key.**
+  No step here requires reading either value; do not add one that does.
 - Only run the commands below (or their obvious equivalents). Do not add
   network calls, credential reads, or `sudo`.
 - `make install` copies the app into `/Applications` and launches it. That is
@@ -42,6 +45,9 @@ security find-generic-password -s "Claude Code-credentials" -w >/dev/null 2>&1 &
   install [Claude Code](https://claude.com/claude-code) and run `claude` to log
   in, then retry. (The file `~/.claude/.credentials.json` is an accepted
   fallback if they use the file store.)
+- OpenRouter is optional: no check needed. If the user has
+  `OPENROUTER_API_KEY` exported in a shell config file, the app finds it on
+  its own; if not, the OpenRouter segment simply does not appear.
 
 ## Step 1: Get the code
 
@@ -79,10 +85,11 @@ codesign -dv /Applications/ClaudeUsageBar.app 2>&1 | grep -i "signature="   # Si
 ```
 
 Then tell the user: **look at the top-right of your menu bar — you should see
-your usage numbers** (e.g. `5h 25% · W 26% · F 17%`). It has no Dock icon by
-design. If the menu bar shows `⚠︎ not signed in`, Claude Code is not logged in
-(see Step 0). If it shows numbers followed by `⚠︎`, the last refresh failed —
-hover or click the item for the reason.
+your usage numbers** (e.g. `5h 25% · W 26% · F 17%`, plus `· OR $12.34` if
+they have an OpenRouter key). It has no Dock icon by design. If the menu bar
+shows `⚠︎ not signed in`, Claude Code is not logged in (see Step 0). If it
+shows numbers followed by `⚠︎`, the last refresh failed — hover or click the
+item for the reason.
 
 ## Step 5: Offer Launch at Login
 

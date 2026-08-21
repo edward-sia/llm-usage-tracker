@@ -5,15 +5,18 @@ import ClaudeUsageBarCore
 @MainActor
 final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
     private let statusItem: NSStatusItem
-    private let poller: UsagePoller
+    private let poller: UsagePoller<UsageSnapshot>
+    private let creditsPoller: UsagePoller<CreditsSnapshot>
     private let preferences: Preferences
     private let menu = NSMenu()
-    private var state: FetchState = .idle
+    private var state: FetchState<UsageSnapshot> = .idle
+    private var creditsState: FetchState<CreditsSnapshot> = .idle
     private var isMenuOpen = false
 
-    init(poller: UsagePoller, preferences: Preferences) {
+    init(poller: UsagePoller<UsageSnapshot>, creditsPoller: UsagePoller<CreditsSnapshot>, preferences: Preferences) {
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         self.poller = poller
+        self.creditsPoller = creditsPoller
         self.preferences = preferences
         super.init()
 
@@ -23,15 +26,21 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
         statusItem.menu = menu
         statusItem.behavior = []
         poller.onChange = { [weak self] state in self?.render(state) }
+        creditsPoller.onChange = { [weak self] creditsState in
+            guard let self else { return }
+            self.creditsState = creditsState
+            self.render(self.state)
+        }
         render(.idle)
     }
 
     // MARK: Rendering
 
-    private func render(_ state: FetchState) {
+    private func render(_ state: FetchState<UsageSnapshot>) {
         self.state = state
         guard let button = statusItem.button else { return }
-        button.attributedTitle = Self.attributedTitle(Formatting.titleSegments(for: state))
+        let segments = Formatting.titleSegments(for: state) + Formatting.openRouterTitleSegments(for: creditsState)
+        button.attributedTitle = Self.attributedTitle(segments)
         // Re-added on every render so the tracking rect follows the title's width. The tooltip
         // text itself is computed lazily in `view(_:stringForToolTip:point:userData:)` at hover
         // time, so the "Updated N s ago" text is never stale between polls.
@@ -43,7 +52,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
     }
 
     func view(_ view: NSView, stringForToolTip tag: NSView.ToolTipTag, point: NSPoint, userData data: UnsafeMutableRawPointer?) -> String {
-        Formatting.tooltip(for: state, now: Date())
+        Formatting.tooltip(for: state, credits: creditsState, now: Date())
     }
 
     static func attributedTitle(_ segments: [TitleSegment]) -> NSAttributedString {
@@ -82,6 +91,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
         // already fresh, so reopening the menu repeatedly does not hammer the rate-limited
         // endpoint. The open menu updates itself when a fetch returns (see `render`).
         Task { await poller.refreshIfStale() }
+        Task { await creditsPoller.refreshIfStale() }
     }
 
     func menuDidClose(_ menu: NSMenu) {
@@ -98,6 +108,11 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
             menu.addItem(.separator())
         }
 
+        if let creditsError = creditsState.error, creditsError != .notSignedIn || creditsState.snapshot != nil {
+            addDisabled(Formatting.openRouterErrorMessage(creditsError, last: creditsState.snapshot, now: now))
+            menu.addItem(.separator())
+        }
+
         if let snapshot = state.snapshot {
             let rows = Formatting.menuRows(for: snapshot, now: now)
             let width = rows.map(\.label.count).max() ?? 0
@@ -107,8 +122,16 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
                 item.isEnabled = false
                 menu.addItem(item)
             }
+        }
+        if let creditsSnapshot = creditsState.snapshot {
+            let item = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+            item.attributedTitle = NSAttributedString(string: Formatting.openRouterMenuLine(for: creditsSnapshot), attributes: [.font: mono])
+            item.isEnabled = false
+            menu.addItem(item)
+        }
+        if let updatedAt = state.snapshot?.fetchedAt ?? creditsState.snapshot?.fetchedAt {
             menu.addItem(.separator())
-            addDisabled("Updated \(Formatting.agoText(since: snapshot.fetchedAt, now: now))")
+            addDisabled("Updated \(Formatting.agoText(since: updatedAt, now: now))")
         } else if state.error == nil {
             addDisabled("Loading…")
             menu.addItem(.separator())
@@ -116,6 +139,9 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
 
         addAction("Refresh", #selector(refreshNow), key: "r")
         addAction("Open usage page (claude.ai)", #selector(openUsagePage))
+        if creditsState.snapshot != nil || creditsState.error.map({ $0 != .notSignedIn }) == true {
+            addAction("Open credits page (openrouter.ai)", #selector(openCreditsPage))
+        }
         menu.addItem(.separator())
 
         let login = addAction("Launch at login", #selector(toggleLaunchAtLogin))
@@ -160,10 +186,15 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
 
     @objc private func refreshNow() {
         Task { await poller.refresh() }
+        Task { await creditsPoller.refresh() }
     }
 
     @objc private func openUsagePage() {
         NSWorkspace.shared.open(Formatting.usagePageURL)
+    }
+
+    @objc private func openCreditsPage() {
+        NSWorkspace.shared.open(Formatting.openRouterCreditsPageURL)
     }
 
     @objc private func toggleLaunchAtLogin() {
@@ -183,5 +214,6 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
         guard let seconds = sender.representedObject as? TimeInterval else { return }
         preferences.refreshInterval = seconds
         poller.interval = seconds
+        creditsPoller.interval = seconds
     }
 }

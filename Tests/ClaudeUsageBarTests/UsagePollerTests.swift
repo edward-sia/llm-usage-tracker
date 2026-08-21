@@ -21,7 +21,7 @@ final class UsagePollerTests: XCTestCase {
 
     func testSuccessfulRefreshPublishesLoaded() async {
         let fetcher = ScriptedFetcher([.success(snapshot(25))])
-        var published: [FetchState] = []
+        var published: [FetchState<UsageSnapshot>] = []
         let poller = UsagePoller(interval: 60, tokenProvider: { "tok" }, fetcher: fetcher.fetch)
         poller.onChange = { published.append($0) }
         await poller.refresh()
@@ -70,7 +70,7 @@ final class UsagePollerTests: XCTestCase {
         let poller = UsagePoller(interval: 60, tokenProvider: { "tok" }, fetcher: fetcher.fetch)
         await poller.refresh()
         XCTAssertEqual(poller.state, .failed(.rateLimited, last: nil))
-        XCTAssertEqual(poller.nextInterval, UsagePoller.rateLimitBackoff)
+        XCTAssertEqual(poller.nextInterval, UsagePoller<UsageSnapshot>.rateLimitBackoff)
         await poller.refresh()
         XCTAssertEqual(poller.state, .loaded(snapshot(25)))
         XCTAssertEqual(poller.nextInterval, 60)
@@ -84,13 +84,13 @@ final class UsagePollerTests: XCTestCase {
 
     func testUnknownErrorIsReportedAsOffline() async {
         struct Boom: Error {}
-        let poller = UsagePoller(interval: 60, tokenProvider: { "tok" }, fetcher: { _ in throw Boom() })
+        let poller = UsagePoller(interval: 60, tokenProvider: { "tok" }, fetcher: { _ -> UsageSnapshot in throw Boom() })
         await poller.refresh()
         XCTAssertEqual(poller.state, .failed(.offline, last: nil))
     }
 
     func testRateLimitBackoffDescriptionMatchesPoller() {
-        XCTAssertEqual(Formatting.rateLimitBackoffDescription, "\(Int(UsagePoller.rateLimitBackoff) / 60) min")
+        XCTAssertEqual(Formatting.rateLimitBackoffDescription, "\(Int(UsagePoller<UsageSnapshot>.rateLimitBackoff) / 60) min")
     }
 
     func testStartPollsRepeatedlyAndStopHalts() async {
@@ -140,6 +140,17 @@ final class UsagePollerTests: XCTestCase {
         XCTAssertEqual(callCount, 1, "the second concurrent refresh() must be ignored while one is in flight")
         XCTAssertEqual(poller.state, .loaded(snapshot(42)))
         poller.stop()
+    }
+
+    func testPollerDrivesCreditsSnapshotsToo() async {
+        // The poller is generic over the snapshot type so OpenRouter credits reuse the same
+        // tested retry/backoff/staleness logic.
+        let credits = CreditsSnapshot(totalCredits: 500, totalUsage: 487.66, fetchedAt: Date(timeIntervalSince1970: 0))
+        let poller = UsagePoller(interval: 60, tokenProvider: { "sk-or-key" }, fetcher: { _ in credits })
+        await poller.refresh()
+        XCTAssertEqual(poller.state, .loaded(credits))
+        await poller.refreshIfStale(olderThan: 20, now: Date(timeIntervalSince1970: 10))
+        XCTAssertEqual(poller.state, .loaded(credits), "fresh credits must not refetch")
     }
 
     // The snapshot(_) helper stamps fetchedAt = 1970-01-01, so `now` offsets below are the

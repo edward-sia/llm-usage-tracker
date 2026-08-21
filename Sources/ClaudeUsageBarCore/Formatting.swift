@@ -84,7 +84,7 @@ public enum Formatting {
 
     // MARK: Title
 
-    public static func titleSegments(for state: FetchState) -> [TitleSegment] {
+    public static func titleSegments(for state: FetchState<UsageSnapshot>) -> [TitleSegment] {
         switch state {
         case .idle:
             return [TitleSegment(text: "…", severity: .normal)]
@@ -192,6 +192,72 @@ extension Formatting {
         return line
     }
 
+    // MARK: OpenRouter credits
+
+    /// Below these remaining-dollar amounts the balance turns amber / red.
+    public static let creditsWarningThreshold = 5.0
+    public static let creditsCriticalThreshold = 1.0
+    public static let openRouterShortLabel = "OR"
+    public static let openRouterCreditsPageURL = URL(string: "https://openrouter.ai/settings/credits")!
+
+    public static func severity(forRemainingCredits remaining: Double) -> Severity {
+        if remaining < creditsCriticalThreshold { return .critical }
+        if remaining < creditsWarningThreshold { return .warning }
+        return .normal
+    }
+
+    /// "$12.34". Negative balances display as $0.00.
+    public static func creditsText(_ amount: Double) -> String {
+        String(format: "$%.2f", max(0, amount))
+    }
+
+    /// The menu bar segments for the credits state. Empty while loading and when no key is
+    /// configured, so Macs without OpenRouter never see the segment.
+    public static func openRouterTitleSegments(for state: FetchState<CreditsSnapshot>) -> [TitleSegment] {
+        func segment(_ snapshot: CreditsSnapshot) -> TitleSegment {
+            TitleSegment(text: "\(openRouterShortLabel) \(creditsText(snapshot.remaining))",
+                         severity: severity(forRemainingCredits: snapshot.remaining))
+        }
+        switch state {
+        case .idle:
+            return []
+        case .loaded(let snapshot):
+            return [segment(snapshot)]
+        case .failed(let error, let last):
+            if let last { return [segment(last), TitleSegment(text: warningGlyph, severity: .warning)] }
+            if error == .notSignedIn { return [] }
+            return [TitleSegment(text: "\(openRouterShortLabel) \(warningGlyph)", severity: .warning)]
+        }
+    }
+
+    public static func openRouterMenuLine(for snapshot: CreditsSnapshot) -> String {
+        "OpenRouter  \(creditsText(snapshot.remaining)) remaining"
+            + " · used \(creditsText(snapshot.totalUsage)) of \(creditsText(snapshot.totalCredits))"
+    }
+
+    public static func openRouterErrorMessage(_ error: UsageError, last: CreditsSnapshot?, now: Date) -> String {
+        let suffix = last.map { " Last updated \(agoText(since: $0.fetchedAt, now: now))." } ?? ""
+        switch error {
+        case .notSignedIn: return "No OpenRouter API key found in your shell config."
+        case .unauthorized: return "OpenRouter API key was rejected. Check OPENROUTER_API_KEY in your shell config."
+        case .rateLimited: return "OpenRouter rate limited. Next refresh in \(rateLimitBackoffDescription)."
+        case .http(let code): return "OpenRouter API error (HTTP \(code)).\(suffix)"
+        case .decoding: return "Unexpected response from the OpenRouter credits API.\(suffix)"
+        case .offline: return "OpenRouter unreachable.\(suffix)"
+        }
+    }
+
+    public static func openRouterTooltipLines(for state: FetchState<CreditsSnapshot>, now: Date) -> [String] {
+        var lines: [String] = []
+        if let error = state.error, !(error == .notSignedIn && state.snapshot == nil) {
+            lines.append(openRouterErrorMessage(error, last: state.snapshot, now: now))
+        }
+        if let snapshot = state.snapshot {
+            lines.append("OpenRouter credits: \(creditsText(snapshot.remaining)) remaining")
+        }
+        return lines
+    }
+
     public static func errorMessage(_ error: UsageError, last: UsageSnapshot?, now: Date) -> String {
         let suffix = last.map { " Last updated \(agoText(since: $0.fetchedAt, now: now))." } ?? ""
         switch error {
@@ -204,7 +270,7 @@ extension Formatting {
         }
     }
 
-    public static func tooltip(for state: FetchState, now: Date, timeZone: TimeZone = .current, locale: Locale = .current) -> String {
+    public static func tooltip(for state: FetchState<UsageSnapshot>, credits: FetchState<CreditsSnapshot> = .idle, now: Date, timeZone: TimeZone = .current, locale: Locale = .current) -> String {
         var lines: [String] = []
         if let error = state.error {
             lines.append(errorMessage(error, last: state.snapshot, now: now))
@@ -217,6 +283,9 @@ extension Formatting {
                 }
                 lines.append(line)
             }
+        }
+        lines.append(contentsOf: openRouterTooltipLines(for: credits, now: now))
+        if let snapshot = state.snapshot {
             lines.append("Updated \(agoText(since: snapshot.fetchedAt, now: now))")
         }
         if lines.isEmpty { lines.append("Loading Claude usage…") }
