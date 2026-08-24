@@ -18,11 +18,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let poller = UsagePoller(
             interval: preferences.refreshInterval,
+            name: "claude",
             tokenProvider: { try credentials.accessToken() },
             fetcher: { token in try await client.fetchUsage(token: token) }
         )
         let creditsPoller = UsagePoller(
             interval: preferences.refreshInterval,
+            name: "openrouter",
             tokenProvider: { try openRouterKeys.apiKey() },
             fetcher: { key in try await openRouterClient.fetchCredits(key: key) }
         )
@@ -33,9 +35,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { _ in
-            // Opportunistic: skips if a fetch just happened before sleep or a backoff is active.
-            Task { @MainActor in await poller.refreshIfStale() }
-            Task { @MainActor in await creditsPoller.refreshIfStale() }
+            // Every Claude client on this machine refreshes at the moment of wake, against the
+            // same account-level limit. wake() drops the timer fire that was missed during
+            // sleep and fetches once after a random delay, so this app polls after that burst.
+            // Each poller draws its own delay, which also spreads the two apart.
+            Task { @MainActor in poller.wake() }
+            Task { @MainActor in creditsPoller.wake() }
         }
 
         poller.start()

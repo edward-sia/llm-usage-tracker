@@ -38,7 +38,7 @@ final class UsageAPIClientTests: XCTestCase {
     }
 
     func testMapsStatusCodesToErrors() async {
-        let cases: [(Int, UsageError)] = [(401, .unauthorized), (429, .rateLimited), (500, .http(500)), (403, .http(403)), (404, .http(404))]
+        let cases: [(Int, UsageError)] = [(401, .unauthorized), (429, .rateLimited(retryAfter: nil)), (500, .http(500)), (403, .http(403)), (404, .http(404))]
         for (status, expected) in cases {
             StubURLProtocol.respond(status: status, body: "{}")
             do {
@@ -46,6 +46,29 @@ final class UsageAPIClientTests: XCTestCase {
                 XCTFail("expected error for \(status)")
             } catch {
                 XCTAssertEqual(error as? UsageError, expected, "status \(status)")
+            }
+        }
+    }
+
+    func testRateLimitCarriesRetryAfterHeader() async {
+        StubURLProtocol.respond(status: 429, body: "{}", headers: ["Retry-After": "1622"])
+        do {
+            _ = try await client.fetchUsage(token: "t", now: now)
+            XCTFail("expected error")
+        } catch {
+            XCTAssertEqual(error as? UsageError, .rateLimited(retryAfter: 1622))
+        }
+    }
+
+    func testUnparseableRetryAfterBecomesNil() async {
+        // HTTP-date and garbage values fall back to nil; the poller then uses its default backoff.
+        for value in ["Wed, 21 Oct 2026 07:28:00 GMT", "soon", "-5", "0"] {
+            StubURLProtocol.respond(status: 429, body: "{}", headers: ["Retry-After": value])
+            do {
+                _ = try await client.fetchUsage(token: "t", now: now)
+                XCTFail("expected error for Retry-After: \(value)")
+            } catch {
+                XCTAssertEqual(error as? UsageError, .rateLimited(retryAfter: nil), "Retry-After: \(value)")
             }
         }
     }

@@ -12,9 +12,9 @@ final class StubURLProtocol: URLProtocol {
         return URLSession(configuration: config)
     }
 
-    static func respond(status: Int, body: String = "") {
+    static func respond(status: Int, body: String = "", headers: [String: String]? = nil) {
         handler = { request in
-            let response = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!
+            let response = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: headers)!
             return (response, Data(body.utf8))
         }
     }

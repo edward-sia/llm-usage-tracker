@@ -90,8 +90,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
         // opportunistic: it does nothing during a 429 backoff, and nothing if the numbers are
         // already fresh, so reopening the menu repeatedly does not hammer the rate-limited
         // endpoint. The open menu updates itself when a fetch returns (see `render`).
-        Task { await poller.refreshIfStale() }
-        Task { await creditsPoller.refreshIfStale() }
+        Task { await poller.refreshIfStale(trigger: .menuOpen) }
+        Task { await creditsPoller.refreshIfStale(trigger: .menuOpen) }
     }
 
     func menuDidClose(_ menu: NSMenu) {
@@ -185,8 +185,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
     // MARK: Actions
 
     @objc private func refreshNow() {
-        Task { await poller.refresh() }
-        Task { await creditsPoller.refresh() }
+        Task { await poller.refresh(trigger: .manual) }
+        Task { await creditsPoller.refresh(trigger: .manual) }
     }
 
     @objc private func openUsagePage() {

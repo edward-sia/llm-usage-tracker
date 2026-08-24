@@ -31,7 +31,7 @@ public struct OpenRouterAPIClient {
         switch http.statusCode {
         case 200..<300: break
         case 401: throw UsageError.unauthorized
-        case 429: throw UsageError.rateLimited
+        case 429: throw UsageError.rateLimited(retryAfter: RetryAfter.seconds(from: http))
         default: throw UsageError.http(http.statusCode)
         }
         return try Self.decode(data, fetchedAt: now)
