@@ -65,6 +65,26 @@ final class FormattingOpenRouterTests: XCTestCase {
         ])
     }
 
+    // MARK: Title segments without the "OR" text label (the app shows the logo instead)
+
+    func testTitleSegmentsWithoutShortLabelWhenLoaded() {
+        let segments = Formatting.openRouterTitleSegments(for: .loaded(credits(12.34)), includeShortLabel: false)
+        XCTAssertEqual(segments, [TitleSegment(text: "$12.34", severity: .normal)])
+    }
+
+    func testTitleSegmentsWithoutShortLabelOnErrorWithoutNumbers() {
+        let segments = Formatting.openRouterTitleSegments(for: .failed(.offline, last: nil), includeShortLabel: false)
+        XCTAssertEqual(segments, [TitleSegment(text: Formatting.warningGlyph, severity: .warning)])
+    }
+
+    func testTitleSegmentsWithoutShortLabelKeepLastBalanceAndAppendGlyphOnError() {
+        let segments = Formatting.openRouterTitleSegments(for: .failed(.offline, last: credits(12.34)), includeShortLabel: false)
+        XCTAssertEqual(segments, [
+            TitleSegment(text: "$12.34", severity: .normal),
+            TitleSegment(text: Formatting.warningGlyph, severity: .warning),
+        ])
+    }
+
     // MARK: Menu line
 
     func testMenuLineShowsRemainingAndTotals() {

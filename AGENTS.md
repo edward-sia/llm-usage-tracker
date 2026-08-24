@@ -8,8 +8,9 @@ moving on. Do not skip the verification steps.
 ## What you are installing
 
 A native macOS menu bar app that shows the user's Claude subscription usage
-(`5h 25% · W 26% · F 17%`) and, when the user has an OpenRouter API key in
-their shell config, their remaining OpenRouter credits (`· OR $12.34`). It
+(`5h 25% · W 26% · F 17%` behind Anthropic's logo) and, when the user has an
+OpenRouter API key in their shell config, their remaining OpenRouter credits
+(`$12.34` behind OpenRouter's logo). It
 reads the OAuth token that Claude Code already stores in the macOS Keychain
 and polls Anthropic's usage endpoint; the OpenRouter key is read from files
 like `~/.zshrc`. It is read-only: it never writes to the Keychain and never
@@ -85,8 +86,8 @@ codesign -dv /Applications/ClaudeUsageBar.app 2>&1 | grep -i "signature="   # Si
 ```
 
 Then tell the user: **look at the top-right of your menu bar — you should see
-your usage numbers** (e.g. `5h 25% · W 26% · F 17%`, plus `· OR $12.34` if
-they have an OpenRouter key). It has no Dock icon by design. If the menu bar
+your usage numbers** (e.g. `5h 25% · W 26% · F 17%` behind Anthropic's logo,
+plus `$12.34` behind OpenRouter's logo if they have an OpenRouter key). It has no Dock icon by design. If the menu bar
 shows `⚠︎ not signed in`, Claude Code is not logged in (see Step 0). If it
 shows numbers followed by `⚠︎`, the last refresh failed — hover or click the
 item for the reason.

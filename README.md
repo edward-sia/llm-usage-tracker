@@ -4,17 +4,22 @@ A tiny macOS menu bar app that always shows your Claude subscription usage — a
 if you use OpenRouter, your remaining credits:
 
 ```
-5h 25% · W 26% · F 17% · OR $12.34
+5h 25% · W 26% · F 17%   $12.34
 ```
+
+Each group sits behind its provider's logo — Anthropic's mark in front of the
+Claude numbers, OpenRouter's in front of the balance (see the screenshot below).
 
 - **5h** — the rolling 5-hour session limit
 - **W** — the weekly limit across all models
 - **F** (or another letter) — a weekly limit scoped to one model, e.g. Fable
-- **OR** — your OpenRouter credit balance (only shown when a key is found)
+- **$…** — your OpenRouter credit balance (only shown when a key is found)
 
 Claude numbers turn amber at 50 % and red at 80 %; the OpenRouter balance turns
 amber below $5 and red below $1. Hover for reset countdowns. Click for bars,
 exact reset times, a refresh button, links to both usage pages, and settings.
+Either provider can be hidden from the click menu; a hidden provider drops out
+of the menu bar and is not polled at all until you show it again.
 
 It shows the same numbers as the claude.ai usage page and the Claude Code status
 line, without keeping a browser tab open or clicking anything.
@@ -119,8 +124,9 @@ beyond the refresh-interval preference.
 | `⚠︎ not signed in` | No Claude Code credentials found | Run `claude` in a terminal and log in |
 | numbers followed by `⚠︎` | Last refresh failed; numbers are stale | Hover or click for the reason (offline, token expired, rate limited, API error) |
 | `…` | First fetch has not finished | Wait a second; hover shows "Loading Claude usage…" |
-| no `OR` segment | No `OPENROUTER_API_KEY` found in shell config | Add `export OPENROUTER_API_KEY=…` to `~/.zshrc` (or another file the app reads — see How it works) |
-| `OR ⚠︎` | The OpenRouter credits fetch failed | Hover or click for the reason |
+| no OpenRouter segment | No `OPENROUTER_API_KEY` found in shell config (or the provider is toggled off in the click menu) | Add `export OPENROUTER_API_KEY=…` to `~/.zshrc` (or another file the app reads — see How it works) |
+| OpenRouter logo + `⚠︎` | The OpenRouter credits fetch failed | Hover or click for the reason |
+| only a gauge glyph | Both providers are toggled off | Click it and turn a provider back on |
 
 "Launch at login" only works when the app runs from `/Applications` (i.e. after
 `make install`), because macOS registers login items by bundle.

@@ -212,10 +212,13 @@ extension Formatting {
     }
 
     /// The menu bar segments for the credits state. Empty while loading and when no key is
-    /// configured, so Macs without OpenRouter never see the segment.
-    public static func openRouterTitleSegments(for state: FetchState<CreditsSnapshot>) -> [TitleSegment] {
+    /// configured, so Macs without OpenRouter never see the segment. Pass
+    /// `includeShortLabel: false` when something else already identifies the provider
+    /// (the app renders the OpenRouter logo in front of the segment).
+    public static func openRouterTitleSegments(for state: FetchState<CreditsSnapshot>, includeShortLabel: Bool = true) -> [TitleSegment] {
+        let prefix = includeShortLabel ? "\(openRouterShortLabel) " : ""
         func segment(_ snapshot: CreditsSnapshot) -> TitleSegment {
-            TitleSegment(text: "\(openRouterShortLabel) \(creditsText(snapshot.remaining))",
+            TitleSegment(text: "\(prefix)\(creditsText(snapshot.remaining))",
                          severity: severity(forRemainingCredits: snapshot.remaining))
         }
         switch state {
@@ -226,7 +229,7 @@ extension Formatting {
         case .failed(let error, let last):
             if let last { return [segment(last), TitleSegment(text: warningGlyph, severity: .warning)] }
             if error == .notSignedIn { return [] }
-            return [TitleSegment(text: "\(openRouterShortLabel) \(warningGlyph)", severity: .warning)]
+            return [TitleSegment(text: "\(prefix)\(warningGlyph)", severity: .warning)]
         }
     }
 

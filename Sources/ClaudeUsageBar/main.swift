@@ -33,13 +33,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { _ in
-            // Opportunistic: skips if a fetch just happened before sleep or a backoff is active.
-            Task { @MainActor in await poller.refreshIfStale() }
-            Task { @MainActor in await creditsPoller.refreshIfStale() }
+            // Opportunistic: skips if a fetch just happened before sleep or a backoff is
+            // active. Providers the user toggled off are not fetched.
+            Task { @MainActor in
+                if preferences.showClaudeUsage { await poller.refreshIfStale() }
+                if preferences.showOpenRouterCredits { await creditsPoller.refreshIfStale() }
+            }
         }
 
-        poller.start()
-        creditsPoller.start()
+        if preferences.showClaudeUsage { poller.start() }
+        if preferences.showOpenRouterCredits { creditsPoller.start() }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
