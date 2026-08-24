@@ -66,14 +66,30 @@ final class UsagePollerTests: XCTestCase {
     }
 
     func testRateLimitBacksOffOnceThenReturnsToInterval() async {
-        let fetcher = ScriptedFetcher([.failure(.rateLimited), .success(snapshot(25))])
+        let fetcher = ScriptedFetcher([.failure(.rateLimited(retryAfter: nil)), .success(snapshot(25))])
         let poller = UsagePoller(interval: 60, tokenProvider: { "tok" }, fetcher: fetcher.fetch)
         await poller.refresh()
-        XCTAssertEqual(poller.state, .failed(.rateLimited, last: nil))
+        XCTAssertEqual(poller.state, .failed(.rateLimited(retryAfter: nil), last: nil))
         XCTAssertEqual(poller.nextInterval, UsagePoller<UsageSnapshot>.rateLimitBackoff)
         await poller.refresh()
         XCTAssertEqual(poller.state, .loaded(snapshot(25)))
         XCTAssertEqual(poller.nextInterval, 60)
+    }
+
+    func testRateLimitHonorsServerRetryAfter() async {
+        let fetcher = ScriptedFetcher([.failure(.rateLimited(retryAfter: 1622)), .success(snapshot(25))])
+        let poller = UsagePoller(interval: 60, tokenProvider: { "tok" }, fetcher: fetcher.fetch)
+        await poller.refresh()
+        XCTAssertEqual(poller.nextInterval, 1622, "wait what the server asked, not the fixed default")
+        await poller.refresh()
+        XCTAssertEqual(poller.nextInterval, 60)
+    }
+
+    func testRetryAfterIsClampedToFloorAndCeiling() {
+        XCTAssertEqual(RateLimitPolicy.backoff(retryAfter: nil), 300)
+        XCTAssertEqual(RateLimitPolicy.backoff(retryAfter: 1622), 1622)
+        XCTAssertEqual(RateLimitPolicy.backoff(retryAfter: 10), 300, "never retry faster than the default backoff")
+        XCTAssertEqual(RateLimitPolicy.backoff(retryAfter: 90_000), 3600, "cap absurd waits at an hour")
     }
 
     func testChangingIntervalIsReflectedInNextInterval() async {
@@ -186,12 +202,50 @@ final class UsagePollerTests: XCTestCase {
     func testRefreshIfStaleSkipsWhileBackingOff() async {
         // A 429 puts the poller in backoff; an opportunistic refresh must not poke the endpoint,
         // even though there are no fresh numbers to reuse.
-        let fetcher = ScriptedFetcher([.failure(.rateLimited), .success(snapshot(50))])
+        let fetcher = ScriptedFetcher([.failure(.rateLimited(retryAfter: nil)), .success(snapshot(50))])
         let poller = UsagePoller(interval: 60, tokenProvider: { "tok" }, fetcher: fetcher.fetch)
         await poller.refresh()
-        XCTAssertEqual(poller.state, .failed(.rateLimited, last: nil))
+        XCTAssertEqual(poller.state, .failed(.rateLimited(retryAfter: nil), last: nil))
         await poller.refreshIfStale(olderThan: 0, now: epoch.addingTimeInterval(9_999))
         XCTAssertEqual(fetcher.tokens.count, 1, "backing off: must not fetch on an opportunistic trigger")
-        XCTAssertEqual(poller.state, .failed(.rateLimited, last: nil))
+        XCTAssertEqual(poller.state, .failed(.rateLimited(retryAfter: nil), last: nil))
+    }
+
+    // MARK: Wake
+
+    func testWakeFetchesAfterJitterWhenStale() async {
+        let exp = XCTestExpectation(description: "wake fetch fired")
+        let poller = UsagePoller(interval: 60, tokenProvider: { "tok" }, fetcher: { [self] _ in
+            exp.fulfill()
+            return snapshot(25)
+        })
+        poller.wake(jitter: 0.05)
+        await fulfillment(of: [exp], timeout: 2)
+        XCTAssertEqual(poller.state, .loaded(snapshot(25)))
+    }
+
+    func testWakeSkipsWhenNumbersAreFresh() async {
+        // fetchedAt is stamped with the real clock here because wake() checks staleness
+        // against the real clock after its jitter delay.
+        let fresh = UsageSnapshot(buckets: [UsageBucket(kind: .session, percent: 1, resetsAt: nil)], fetchedAt: Date())
+        var calls = 0
+        let poller = UsagePoller(interval: 60, tokenProvider: { "tok" }, fetcher: { _ in
+            calls += 1
+            return fresh
+        })
+        await poller.refresh()
+        XCTAssertEqual(calls, 1)
+        poller.wake(jitter: 0.02)
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        XCTAssertEqual(calls, 1, "numbers seconds old: wake must not fetch again")
+    }
+
+    func testWakeSkipsWhileBackingOff() async {
+        let fetcher = ScriptedFetcher([.failure(.rateLimited(retryAfter: nil)), .success(snapshot(50))])
+        let poller = UsagePoller(interval: 60, tokenProvider: { "tok" }, fetcher: fetcher.fetch)
+        await poller.refresh()
+        poller.wake(jitter: 0.02)
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        XCTAssertEqual(fetcher.tokens.count, 1, "backing off: wake must not fetch")
     }
 }

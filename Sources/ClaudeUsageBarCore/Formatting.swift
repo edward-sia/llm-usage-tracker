@@ -117,7 +117,24 @@ public enum Formatting {
 
 extension Formatting {
     public static let usagePageURL = URL(string: "https://claude.ai/settings/usage")!
-    public static let rateLimitBackoffDescription = "5 min"
+    public static var rateLimitBackoffDescription: String { durationText(seconds: RateLimitPolicy.minBackoff) }
+
+    /// "45 s", "5 min", "27 min", "1 h", "1 h 5 min". Rounded to the nearest minute above 60 s.
+    public static func durationText(seconds: TimeInterval) -> String {
+        let total = max(0, Int(seconds.rounded()))
+        if total < 60 { return "\(total) s" }
+        let minutes = Int((Double(total) / 60).rounded())
+        if minutes < 60 { return "\(minutes) min" }
+        return minutes % 60 == 0 ? "\(minutes / 60) h" : "\(minutes / 60) h \(minutes % 60) min"
+    }
+
+    /// The rate-limited menu line. Shows the wait the poller will actually take; when the
+    /// server sent a `Retry-After`, that drove the wait and the message says so.
+    private static func rateLimitedMessage(prefix: String, retryAfter: TimeInterval?) -> String {
+        guard let retryAfter else { return "\(prefix) Next refresh in \(rateLimitBackoffDescription)." }
+        let wait = durationText(seconds: RateLimitPolicy.backoff(retryAfter: retryAfter))
+        return "\(prefix) Next refresh in \(wait) (server's Retry-After)."
+    }
 
     /// "4h 22m", "59m", "<1m", or "now" for past dates.
     public static func countdown(to date: Date, from now: Date) -> String {
@@ -243,7 +260,7 @@ extension Formatting {
         switch error {
         case .notSignedIn: return "No OpenRouter API key found in your shell config."
         case .unauthorized: return "OpenRouter API key was rejected. Check OPENROUTER_API_KEY in your shell config."
-        case .rateLimited: return "OpenRouter rate limited. Next refresh in \(rateLimitBackoffDescription)."
+        case .rateLimited(let retryAfter): return rateLimitedMessage(prefix: "OpenRouter rate limited.", retryAfter: retryAfter)
         case .http(let code): return "OpenRouter API error (HTTP \(code)).\(suffix)"
         case .decoding: return "Unexpected response from the OpenRouter credits API.\(suffix)"
         case .offline: return "OpenRouter unreachable.\(suffix)"
@@ -266,7 +283,7 @@ extension Formatting {
         switch error {
         case .notSignedIn: return "Not signed in to Claude Code. Run `claude` in a terminal and log in."
         case .unauthorized: return "Token expired. Open Claude Code to refresh it."
-        case .rateLimited: return "Rate limited. Next refresh in \(rateLimitBackoffDescription)."
+        case .rateLimited(let retryAfter): return rateLimitedMessage(prefix: "Rate limited.", retryAfter: retryAfter)
         case .http(let code): return "Usage API error (HTTP \(code)).\(suffix)"
         case .decoding: return "Unexpected response from the usage API.\(suffix)"
         case .offline: return "Offline.\(suffix)"

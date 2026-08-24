@@ -164,8 +164,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
         // already fresh, so reopening the menu repeatedly does not hammer the rate-limited
         // endpoint. The open menu updates itself when a fetch returns (see `render`).
         // Providers the user turned off are not fetched at all.
-        if preferences.showClaudeUsage { Task { await poller.refreshIfStale() } }
-        if preferences.showOpenRouterCredits { Task { await creditsPoller.refreshIfStale() } }
+        if preferences.showClaudeUsage { Task { await poller.refreshIfStale(trigger: .menuOpen) } }
+        if preferences.showOpenRouterCredits { Task { await creditsPoller.refreshIfStale(trigger: .menuOpen) } }
     }
 
     func menuDidClose(_ menu: NSMenu) {
@@ -280,8 +280,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
     // MARK: Actions
 
     @objc private func refreshNow() {
-        if preferences.showClaudeUsage { Task { await poller.refresh() } }
-        if preferences.showOpenRouterCredits { Task { await creditsPoller.refresh() } }
+        if preferences.showClaudeUsage { Task { await poller.refresh(trigger: .manual) } }
+        if preferences.showOpenRouterCredits { Task { await creditsPoller.refresh(trigger: .manual) } }
     }
 
     /// Turning a provider off stops its poller (no more requests) and re-renders the title

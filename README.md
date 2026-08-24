@@ -98,11 +98,33 @@ xattr -dr com.apple.quarantine /Applications/ClaudeUsageBar.app
 That usage endpoint is shared and rate-limited — it also backs the claude.ai
 usage page and the Claude Code status line. If too many requests go out on your
 account at once (this app, the Claude Code status line, and other tools all use
-the same token), it returns HTTP 429; the app then shows `Rate limited. Next
-refresh in 5 min.`, keeps your last numbers, and resumes polling after the
-backoff. To be a good citizen it never polls faster than 60 s, skips the
-menu-open fetch while numbers are still fresh, and does not poll at all during
-the backoff.
+the same token), it returns HTTP 429. The response usually names a wait in its
+`Retry-After` header; the app honors it (clamped between 5 minutes and 1 hour),
+shows it in the menu (`Rate limited. Next refresh in 27 min (server's
+Retry-After).`), keeps your last numbers, and does not poll again until the wait
+is over. Wake from sleep is the moment every client on the machine refreshes at
+once, so after wake the app deliberately waits a random 30–90 seconds before its
+own fetch instead of joining that burst. It also never polls faster than 60 s
+and skips the menu-open fetch while numbers are still fresh.
+
+### Logs
+
+Every fetch writes one line to the macOS unified log: what triggered it (timer,
+menu open, wake, manual, start), the outcome, the server's `Retry-After` on a
+429, and how long the request took. To see the last few hours:
+
+```bash
+log show --last 6h --predicate 'subsystem == "dev.llm-usage-tracker.ClaudeUsageBar"'
+```
+
+or to watch live:
+
+```bash
+log stream --predicate 'subsystem == "dev.llm-usage-tracker.ClaudeUsageBar"'
+```
+
+The `claude` category is the usage poller, `openrouter` the credits poller.
+Nothing sensitive is logged — no tokens, no usage numbers.
 
 The app is read-only: it never writes to the Keychain and never refreshes the
 token itself (Claude Code does that). If the token expires, the app shows a

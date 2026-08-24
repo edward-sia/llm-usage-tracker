@@ -78,12 +78,25 @@ final class FormattingDetailTests: XCTestCase {
         let last = UsageSnapshot(buckets: [], fetchedAt: now.addingTimeInterval(-180))
         XCTAssertEqual(Formatting.errorMessage(.notSignedIn, last: nil, now: now), "Not signed in to Claude Code. Run `claude` in a terminal and log in.")
         XCTAssertEqual(Formatting.errorMessage(.unauthorized, last: last, now: now), "Token expired. Open Claude Code to refresh it.")
-        XCTAssertEqual(Formatting.errorMessage(.rateLimited, last: last, now: now), "Rate limited. Next refresh in 5 min.")
+        XCTAssertEqual(Formatting.errorMessage(.rateLimited(retryAfter: nil), last: last, now: now), "Rate limited. Next refresh in 5 min.")
+        XCTAssertEqual(Formatting.errorMessage(.rateLimited(retryAfter: 1622), last: last, now: now),
+                       "Rate limited. Next refresh in 27 min (server's Retry-After).")
+        XCTAssertEqual(Formatting.errorMessage(.rateLimited(retryAfter: 10), last: last, now: now),
+                       "Rate limited. Next refresh in 5 min (server's Retry-After).",
+                       "the message shows the wait the poller will actually take, floor applied")
         XCTAssertEqual(Formatting.errorMessage(.http(500), last: last, now: now), "Usage API error (HTTP 500). Last updated 3 min ago.")
         XCTAssertEqual(Formatting.errorMessage(.http(500), last: nil, now: now), "Usage API error (HTTP 500).")
         XCTAssertEqual(Formatting.errorMessage(.decoding, last: last, now: now), "Unexpected response from the usage API. Last updated 3 min ago.")
         XCTAssertEqual(Formatting.errorMessage(.offline, last: last, now: now), "Offline. Last updated 3 min ago.")
         XCTAssertEqual(Formatting.errorMessage(.offline, last: nil, now: now), "Offline.")
+    }
+
+    func testDurationText() {
+        XCTAssertEqual(Formatting.durationText(seconds: 45), "45 s")
+        XCTAssertEqual(Formatting.durationText(seconds: 300), "5 min")
+        XCTAssertEqual(Formatting.durationText(seconds: 1622), "27 min")
+        XCTAssertEqual(Formatting.durationText(seconds: 3600), "1 h")
+        XCTAssertEqual(Formatting.durationText(seconds: 3900), "1 h 5 min")
     }
 
     func testTooltipLoaded() {

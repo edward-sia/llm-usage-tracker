@@ -98,6 +98,48 @@ Tell the user they can turn on **Launch at login** from the app's click menu so
 it starts with the Mac. (Programmatic toggling only works from the installed
 `/Applications` copy, which is what Step 3 produced.)
 
+## Debugging: reading the app's logs
+
+The app writes one line to the macOS unified log for every fetch it makes (and
+every fetch it deliberately skips). This is the first place to look when the
+user asks "why does it say rate limited" or "why are my numbers stale".
+
+```bash
+/usr/bin/log show --last 6h --info --predicate 'subsystem == "dev.llm-usage-tracker.ClaudeUsageBar"' --style compact
+```
+
+Use the full path `/usr/bin/log` — plain `log` is a zsh builtin and fails with
+"too many arguments". Add `AND process == "ClaudeUsageBar"` to the predicate to
+exclude lines emitted by test runs. `log stream` with the same predicate
+watches live.
+
+Two categories: `claude` is the usage poller, `openrouter` the credits poller.
+Example lines and how to read them:
+
+```
+fetch(start): ok (0.32s)
+fetch(timer): HTTP 429 (retry-after 604s, 1 in a row) — next attempt in 604s (0.14s)
+skip(menu-open): backing off after 429
+wake: opportunistic fetch in 47s
+```
+
+- The word in parentheses after `fetch`/`skip` is what triggered it: `start`
+  (app launch), `timer` (the refresh interval), `manual` (the Refresh menu
+  item), `menu-open` (user opened the menu), `wake` (Mac woke from sleep).
+- On a 429 the line shows the server's `Retry-After`, the consecutive-429
+  count, and the wait the app actually chose (the header value clamped between
+  5 minutes and 1 hour).
+- Tokens, keys, and usage numbers are never logged.
+
+Behavior worth knowing when interpreting logs: the usage endpoint is rate
+limited per account and shared with the claude.ai usage page and the Claude
+Code status line, so 429s can appear even when this app polls slowly. After a
+429 the app waits out the server's `Retry-After` and skips menu-open fetches
+meanwhile. On wake from sleep it waits a random 30–90 s before fetching so it
+does not join the burst of every other Claude client refreshing at once. The
+last good numbers live only in memory: if the app restarts while the account
+is rate limited, the menu has nothing to show until the first successful fetch.
+
 ## Updating later
 
 ```bash

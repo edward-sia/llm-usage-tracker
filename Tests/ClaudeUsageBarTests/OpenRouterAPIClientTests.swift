@@ -35,7 +35,7 @@ final class OpenRouterAPIClientTests: XCTestCase {
     }
 
     func testMapsStatusCodesToErrors() async {
-        let cases: [(Int, UsageError)] = [(401, .unauthorized), (429, .rateLimited), (500, .http(500)), (403, .http(403))]
+        let cases: [(Int, UsageError)] = [(401, .unauthorized), (429, .rateLimited(retryAfter: nil)), (500, .http(500)), (403, .http(403))]
         for (status, expected) in cases {
             StubURLProtocol.respond(status: status, body: "{}")
             do {
@@ -44,6 +44,16 @@ final class OpenRouterAPIClientTests: XCTestCase {
             } catch {
                 XCTAssertEqual(error as? UsageError, expected, "status \(status)")
             }
+        }
+    }
+
+    func testRateLimitCarriesRetryAfterHeader() async {
+        StubURLProtocol.respond(status: 429, body: "{}", headers: ["Retry-After": "600"])
+        do {
+            _ = try await client.fetchCredits(key: "k", now: now)
+            XCTFail("expected error")
+        } catch {
+            XCTAssertEqual(error as? UsageError, .rateLimited(retryAfter: 600))
         }
     }
 
