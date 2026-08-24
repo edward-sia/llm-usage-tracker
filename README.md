@@ -7,7 +7,7 @@ if you use OpenRouter, your remaining credits:
 5h 25% · W 26% · F 17%   $12.34
 ```
 
-Each group sits behind its provider's logo — Anthropic's mark in front of the
+Each group sits behind its provider's logo — the Claude mark in front of the
 Claude numbers, OpenRouter's in front of the balance (see the screenshot below).
 
 - **5h** — the rolling 5-hour session limit
