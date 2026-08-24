@@ -7,7 +7,7 @@ if you use them, your ChatGPT usage and your remaining OpenRouter credits:
 5h 25% · W 26% · F 17%   5h 42% · W 8%   $12.34
 ```
 
-Each group sits behind its provider's logo — Anthropic's mark in front of the
+Each group sits behind its provider's logo — the Claude mark in front of the
 Claude numbers, OpenAI's in front of the ChatGPT numbers, OpenRouter's in front of
 the balance (see the screenshot below).
 
@@ -40,7 +40,8 @@ Click it for bars, exact reset times, and settings:
 
 ![The dropdown menu](docs/images/menu.png)
 
-*(Rendered from the app's own fonts, colors, and output.)*
+*(Screenshots of the running app. "Launch at login" reads unchecked because the shots come
+from a helper binary rather than the installed `.app`.)*
 
 ## Requirements
 

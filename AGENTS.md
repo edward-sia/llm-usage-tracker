@@ -8,7 +8,7 @@ moving on. Do not skip the verification steps.
 ## What you are installing
 
 A native macOS menu bar app that shows the user's Claude subscription usage
-(`5h 25% · W 26% · F 17%` behind Anthropic's logo) and, when the credentials are
+(`5h 25% · W 26% · F 17%` behind the Claude logo) and, when the credentials are
 there to read, their ChatGPT usage (`5h 42% · W 8%` behind OpenAI's logo) and their
 remaining OpenRouter credits (`$12.34` behind OpenRouter's logo).
 
@@ -94,7 +94,7 @@ codesign -dv /Applications/ClaudeUsageBar.app 2>&1 | grep -i "signature="   # Si
 ```
 
 Then tell the user: **look at the top-right of your menu bar — you should see
-your usage numbers** (e.g. `5h 25% · W 26% · F 17%` behind Anthropic's logo, plus
+your usage numbers** (e.g. `5h 25% · W 26% · F 17%` behind the Claude logo, plus
 `5h 42% · W 8%` behind OpenAI's logo if they have a ChatGPT login, plus `$12.34` behind
 OpenRouter's logo if they have an OpenRouter key). It has no Dock icon by design. If the menu bar
 shows `⚠︎ not signed in`, Claude Code is not logged in (see Step 0). If it
