@@ -47,14 +47,25 @@ public enum UsageError: Error, Equatable, Sendable {
     case notSignedIn
     /// HTTP 401.
     case unauthorized
-    /// HTTP 429.
-    case rateLimited
+    /// HTTP 429. Carries the server's `Retry-After` wait in seconds when it sent one.
+    case rateLimited(retryAfter: TimeInterval?)
     /// Any other non-2xx status.
     case http(Int)
     /// 200 but the body could not be turned into at least one bucket.
     case decoding
     /// Transport failure or timeout.
     case offline
+}
+
+/// Reads the `Retry-After` header off a 429 response. The usage endpoint sends delta-seconds;
+/// HTTP-date values and garbage come back as nil, and the poller falls back to its default backoff.
+public enum RetryAfter {
+    public static func seconds(from response: HTTPURLResponse) -> TimeInterval? {
+        guard let raw = response.value(forHTTPHeaderField: "Retry-After"),
+              let value = TimeInterval(raw.trimmingCharacters(in: .whitespaces)),
+              value > 0, value.isFinite else { return nil }
+        return value
+    }
 }
 
 /// The only thing the UI reads. Generic so Claude usage and OpenRouter credits share it.

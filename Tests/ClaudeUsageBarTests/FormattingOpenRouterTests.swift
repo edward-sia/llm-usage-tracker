@@ -79,8 +79,10 @@ final class FormattingOpenRouterTests: XCTestCase {
                        "No OpenRouter API key found in your shell config.")
         XCTAssertEqual(Formatting.openRouterErrorMessage(.unauthorized, last: nil, now: now),
                        "OpenRouter API key was rejected. Check OPENROUTER_API_KEY in your shell config.")
-        XCTAssertEqual(Formatting.openRouterErrorMessage(.rateLimited, last: nil, now: now),
+        XCTAssertEqual(Formatting.openRouterErrorMessage(.rateLimited(retryAfter: nil), last: nil, now: now),
                        "OpenRouter rate limited. Next refresh in 5 min.")
+        XCTAssertEqual(Formatting.openRouterErrorMessage(.rateLimited(retryAfter: 600), last: nil, now: now),
+                       "OpenRouter rate limited. Next refresh in 10 min (server's Retry-After).")
         XCTAssertEqual(Formatting.openRouterErrorMessage(.http(500), last: nil, now: now),
                        "OpenRouter API error (HTTP 500).")
         XCTAssertEqual(Formatting.openRouterErrorMessage(.decoding, last: nil, now: now),
