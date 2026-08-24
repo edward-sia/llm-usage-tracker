@@ -54,7 +54,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
     private func titleGroups() -> [TitleGroup] {
         var groups: [TitleGroup] = []
         if preferences.showClaudeUsage {
-            groups.append(TitleGroup(icon: ProviderIcons.anthropic(), segments: Formatting.titleSegments(for: state)))
+            groups.append(TitleGroup(icon: ProviderIcons.claude(), segments: Formatting.titleSegments(for: state)))
         }
         if preferences.showOpenRouterCredits {
             // The logo stands in for the old "OR" text label.
@@ -233,7 +233,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
         }
         menu.addItem(.separator())
 
-        let claudeToggle = addAction("Show Claude usage", #selector(toggleClaudeUsage))
+        let claudeToggle = addAction("Show Claude subscription", #selector(toggleClaudeUsage))
         claudeToggle.state = showClaude ? .on : .off
         let openRouterToggle = addAction("Show OpenRouter credits", #selector(toggleOpenRouterCredits))
         openRouterToggle.state = showOpenRouter ? .on : .off
