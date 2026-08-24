@@ -147,8 +147,9 @@ final class FormattingOpenRouterTests: XCTestCase {
     }
 
     func testCombinedTooltipShowsCreditsAloneWhileClaudeIsIdle() {
+        // With Claude idle (or hidden) the "Updated" age falls through to the credits snapshot.
         let text = Formatting.tooltip(for: .idle, credits: .loaded(credits(12.34)), now: now)
-        XCTAssertEqual(text, "OpenRouter credits: $12.34 remaining")
+        XCTAssertEqual(text, "OpenRouter credits: $12.34 remaining\nUpdated 16 min ago")
     }
 
     func testCombinedTooltipWithoutCreditsMatchesClaudeOnlyTooltip() {

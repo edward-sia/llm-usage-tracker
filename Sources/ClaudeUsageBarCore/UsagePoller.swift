@@ -21,15 +21,21 @@ public enum RateLimitPolicy {
 
 /// Drives periodic fetches and owns the current `FetchState`.
 ///
-/// - One retry with a freshly read token after a 401 (Claude Code may have rotated it).
+/// - One retry with a freshly read credential after a 401 (the CLI that owns it may have rotated it).
 /// - After a 429 the next tick waits `RateLimitPolicy.backoff` instead of `interval`.
 /// - The last good snapshot travels with every failure so the UI keeps showing numbers.
 /// - Wake-from-sleep is handled by the app calling `wake()`; Core has no AppKit.
+/// - A provider can raise its own polling floor with `minimumInterval` and widen the window in
+///   which opportunistic fetches are skipped with `opportunisticStaleAfter`. Both exist to keep
+///   this app off shared, rate-limited usage endpoints.
 /// - Every fetch outcome goes to the unified log (subsystem dev.llm-usage-tracker.ClaudeUsageBar).
+///
+/// Generic over the credential type as well as the snapshot type: Claude and OpenRouter each
+/// authenticate with a bare token string, while ChatGPT needs a token plus an account id.
 @MainActor
-public final class UsagePoller<Snapshot: TimestampedSnapshot> {
-    public typealias TokenProvider = () throws -> String
-    public typealias Fetcher = (_ token: String) async throws -> Snapshot
+public final class UsagePoller<Snapshot: TimestampedSnapshot, Credential: Sendable> {
+    public typealias CredentialProvider = () throws -> Credential
+    public typealias Fetcher = (_ credential: Credential) async throws -> Snapshot
 
     public static var logSubsystem: String { "dev.llm-usage-tracker.ClaudeUsageBar" }
     public static var rateLimitBackoff: TimeInterval { RateLimitPolicy.minBackoff }
@@ -43,12 +49,21 @@ public final class UsagePoller<Snapshot: TimestampedSnapshot> {
         didSet { if running { scheduleNext() } }
     }
 
-    /// What the next timer wait will be: the normal interval, or the backoff after a 429.
+    /// A floor this poller never polls faster than, whatever the user picked in the menu. Providers
+    /// whose numbers move slowly set it above the shared interval so a faster global setting cannot
+    /// drag them into rate-limit territory.
+    public let minimumInterval: TimeInterval
+
+    /// Default age at which `refreshIfStale` considers the numbers worth refetching.
+    public let opportunisticStaleAfter: TimeInterval
+
+    /// What the next timer wait will be: the backoff after a 429, otherwise the chosen interval —
+    /// and never below this provider's own floor, whichever of the two is in play.
     public var nextInterval: TimeInterval {
-        backoff ?? interval
+        max(backoff ?? interval, minimumInterval)
     }
 
-    private let tokenProvider: TokenProvider
+    private let credentialProvider: CredentialProvider
     private let fetcher: Fetcher
     private let logger: Logger
     private var timer: Timer?
@@ -58,10 +73,19 @@ public final class UsagePoller<Snapshot: TimestampedSnapshot> {
     private var consecutiveRateLimits = 0
     private var inFlight = false
 
-    public init(interval: TimeInterval, name: String = "poller", tokenProvider: @escaping TokenProvider, fetcher: @escaping Fetcher) {
+    public init(
+        interval: TimeInterval,
+        name: String = "poller",
+        minimumInterval: TimeInterval = 0,
+        opportunisticStaleAfter: TimeInterval = 20,
+        credentialProvider: @escaping CredentialProvider,
+        fetcher: @escaping Fetcher
+    ) {
         self.interval = interval
+        self.minimumInterval = minimumInterval
+        self.opportunisticStaleAfter = opportunisticStaleAfter
         self.logger = Logger(subsystem: Self.logSubsystem, category: name)
-        self.tokenProvider = tokenProvider
+        self.credentialProvider = credentialProvider
         self.fetcher = fetcher
     }
 
@@ -80,16 +104,17 @@ public final class UsagePoller<Snapshot: TimestampedSnapshot> {
     /// An opportunistic refresh — triggered by the user glancing at the menu or by wake from
     /// sleep, not by the timer. It protects the shared, rate-limited usage endpoint:
     /// it does nothing while a 429 backoff is in effect, and nothing if the last good numbers
-    /// are younger than `staleAfter`. Reopening the menu rapidly therefore reuses the numbers
-    /// it just fetched instead of firing a request each time. The timer and the manual Refresh
-    /// button still call `refresh()` directly, so periodic polling and explicit refreshes are
-    /// never suppressed.
-    public func refreshIfStale(trigger: FetchTrigger = .menuOpen, olderThan staleAfter: TimeInterval = 20, now: Date = Date()) async {
+    /// are younger than `staleAfter` (which defaults to this poller's `opportunisticStaleAfter`).
+    /// Reopening the menu rapidly therefore reuses the numbers it just fetched instead of firing
+    /// a request each time. The timer and the manual Refresh button still call `refresh()`
+    /// directly, so periodic polling and explicit refreshes are never suppressed.
+    public func refreshIfStale(trigger: FetchTrigger = .menuOpen, olderThan staleAfter: TimeInterval? = nil, now: Date = Date()) async {
         if backoff != nil {
             logger.log("skip(\(trigger.rawValue, privacy: .public)): backing off after 429")
             return
         }
-        if let fetchedAt = state.snapshot?.fetchedAt, now.timeIntervalSince(fetchedAt) < staleAfter {
+        let threshold = staleAfter ?? opportunisticStaleAfter
+        if let fetchedAt = state.snapshot?.fetchedAt, now.timeIntervalSince(fetchedAt) < threshold {
             logger.debug("skip(\(trigger.rawValue, privacy: .public)): numbers are fresh")
             return
         }
@@ -151,11 +176,12 @@ public final class UsagePoller<Snapshot: TimestampedSnapshot> {
     }
 
     private func fetchOnce(retryOnUnauthorized: Bool) async throws -> Snapshot {
-        let tokenProvider = self.tokenProvider
-        // Off the main actor: the real provider shells out to `security`, which must not block the UI.
-        let token = try await Task.detached(priority: .utility) { try tokenProvider() }.value
+        let credentialProvider = self.credentialProvider
+        // Off the main actor: the real providers read files and shell out to `security`, neither
+        // of which must block the UI.
+        let credential = try await Task.detached(priority: .utility) { try credentialProvider() }.value
         do {
-            return try await fetcher(token)
+            return try await fetcher(credential)
         } catch UsageError.unauthorized where retryOnUnauthorized {
             return try await fetchOnce(retryOnUnauthorized: false)
         }

@@ -5,19 +5,25 @@ import ClaudeUsageBarCore
 @MainActor
 final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
     private let statusItem: NSStatusItem
-    private let poller: UsagePoller<UsageSnapshot>
-    private let creditsPoller: UsagePoller<CreditsSnapshot>
+    private let poller: UsagePoller<UsageSnapshot, String>
+    private let creditsPoller: UsagePoller<CreditsSnapshot, String>
+    private let chatGPTPoller: UsagePoller<ChatGPTUsageSnapshot, ChatGPTCredentials>
     private let preferences: Preferences
     private let menu = NSMenu()
     private var state: FetchState<UsageSnapshot> = .idle
     private var creditsState: FetchState<CreditsSnapshot> = .idle
+    private var chatGPTState: FetchState<ChatGPTUsageSnapshot> = .idle
     private var isMenuOpen = false
     private var appearanceObservation: NSKeyValueObservation?
 
-    init(poller: UsagePoller<UsageSnapshot>, creditsPoller: UsagePoller<CreditsSnapshot>, preferences: Preferences) {
+    init(poller: UsagePoller<UsageSnapshot, String>,
+         creditsPoller: UsagePoller<CreditsSnapshot, String>,
+         chatGPTPoller: UsagePoller<ChatGPTUsageSnapshot, ChatGPTCredentials>,
+         preferences: Preferences) {
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         self.poller = poller
         self.creditsPoller = creditsPoller
+        self.chatGPTPoller = chatGPTPoller
         self.preferences = preferences
         super.init()
 
@@ -30,6 +36,11 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
         creditsPoller.onChange = { [weak self] creditsState in
             guard let self else { return }
             self.creditsState = creditsState
+            self.render(self.state)
+        }
+        chatGPTPoller.onChange = { [weak self] chatGPTState in
+            guard let self else { return }
+            self.chatGPTState = chatGPTState
             self.render(self.state)
         }
         // The provider icons are tinted when first drawn; re-render on appearance flips so a
@@ -56,6 +67,13 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
         if preferences.showClaudeUsage {
             groups.append(TitleGroup(icon: ProviderIcons.anthropic(), segments: Formatting.titleSegments(for: state)))
         }
+        if preferences.showChatGPTUsage {
+            // The logo identifies the provider, so the window labels ("5h", "W") are the only text.
+            let segments = Formatting.chatGPTTitleSegments(for: chatGPTState)
+            if !segments.isEmpty {
+                groups.append(TitleGroup(icon: ProviderIcons.openAI(), segments: segments))
+            }
+        }
         if preferences.showOpenRouterCredits {
             // The logo stands in for the old "OR" text label.
             let segments = Formatting.openRouterTitleSegments(for: creditsState, includeShortLabel: false)
@@ -81,23 +99,16 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
     }
 
     func view(_ view: NSView, stringForToolTip tag: NSView.ToolTipTag, point: NSPoint, userData data: UnsafeMutableRawPointer?) -> String {
-        let now = Date()
-        if preferences.showClaudeUsage {
-            let credits: FetchState<CreditsSnapshot> = preferences.showOpenRouterCredits ? creditsState : .idle
-            return Formatting.tooltip(for: state, credits: credits, now: now)
+        guard preferences.showClaudeUsage || preferences.showChatGPTUsage || preferences.showOpenRouterCredits else {
+            return "Claude, ChatGPT, and OpenRouter are all hidden. Show one again from this menu."
         }
-        if preferences.showOpenRouterCredits {
-            var lines = Formatting.openRouterTooltipLines(for: creditsState, now: now)
-            // With the Claude rows hidden the "no key" case needs spelling out here too.
-            if lines.isEmpty, creditsState.error == .notSignedIn {
-                lines = [Formatting.openRouterErrorMessage(.notSignedIn, last: nil, now: now)]
-            }
-            if let fetchedAt = creditsState.snapshot?.fetchedAt {
-                lines.append("Updated \(Formatting.agoText(since: fetchedAt, now: now))")
-            }
-            return lines.isEmpty ? "Loading OpenRouter credits…" : lines.joined(separator: "\n")
-        }
-        return "Claude usage and OpenRouter credits are hidden. Show them again from this menu."
+        // A hidden provider goes in as .idle, which Formatting treats as nothing to say.
+        return Formatting.tooltip(
+            for: preferences.showClaudeUsage ? state : .idle,
+            credits: preferences.showOpenRouterCredits ? creditsState : .idle,
+            chatGPT: preferences.showChatGPTUsage ? chatGPTState : .idle,
+            now: Date()
+        )
     }
 
     /// Gap between provider groups. Wider than the in-group separator: each group already
@@ -123,7 +134,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
             }
         }
         if result.length == 0 {
-            // Both providers hidden: keep a small clickable glyph so the menu stays reachable.
+            // Every provider hidden: keep a small clickable glyph so the menu stays reachable.
             if let gauge = ProviderIcons.hiddenPlaceholder() {
                 result.append(attachmentString(for: gauge, font: font))
             } else {
@@ -162,9 +173,10 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
         // whatever the last background tick left (which App Nap can delay by minutes). This is
         // opportunistic: it does nothing during a 429 backoff, and nothing if the numbers are
         // already fresh, so reopening the menu repeatedly does not hammer the rate-limited
-        // endpoint. The open menu updates itself when a fetch returns (see `render`).
-        // Providers the user turned off are not fetched at all.
+        // endpoints. Each poller applies its own freshness window. The open menu updates itself
+        // when a fetch returns (see `render`). Providers the user turned off are not fetched.
         if preferences.showClaudeUsage { Task { await poller.refreshIfStale(trigger: .menuOpen) } }
+        if preferences.showChatGPTUsage { Task { await chatGPTPoller.refreshIfStale(trigger: .menuOpen) } }
         if preferences.showOpenRouterCredits { Task { await creditsPoller.refreshIfStale(trigger: .menuOpen) } }
     }
 
@@ -172,61 +184,83 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
         isMenuOpen = false
     }
 
+    /// True when some visible provider already has numbers on screen. A provider with no
+    /// credentials stays quiet in that case — "no key found" is noise next to real rows, and the
+    /// explanation only earns a line when the menu would otherwise not explain itself.
+    private var anyVisibleSnapshot: Bool {
+        (preferences.showClaudeUsage && state.snapshot != nil)
+            || (preferences.showChatGPTUsage && chatGPTState.snapshot != nil)
+            || (preferences.showOpenRouterCredits && creditsState.snapshot != nil)
+    }
+
     private func rebuildMenu() {
         menu.removeAllItems()
         let now = Date()
         let mono = NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
         let showClaude = preferences.showClaudeUsage
+        let showChatGPT = preferences.showChatGPTUsage
         let showOpenRouter = preferences.showOpenRouterCredits
 
         if showClaude, let error = state.error {
             addDisabled(Formatting.errorMessage(error, last: state.snapshot, now: now))
             menu.addItem(.separator())
         }
-
-        // "No key found" stays hidden while the Claude rows carry the menu, but once Claude
-        // is toggled off it is the only explanation for the empty panel, so it shows.
+        if showChatGPT, let chatGPTError = chatGPTState.error,
+           chatGPTError != .notSignedIn || !anyVisibleSnapshot {
+            addDisabled(Formatting.chatGPTErrorMessage(chatGPTError, last: chatGPTState.snapshot, now: now))
+            menu.addItem(.separator())
+        }
         if showOpenRouter, let creditsError = creditsState.error,
-           creditsError != .notSignedIn || creditsState.snapshot != nil || !showClaude {
+           creditsError != .notSignedIn || !anyVisibleSnapshot {
             addDisabled(Formatting.openRouterErrorMessage(creditsError, last: creditsState.snapshot, now: now))
             menu.addItem(.separator())
         }
 
-        if showClaude, let snapshot = state.snapshot {
-            let rows = Formatting.menuRows(for: snapshot, now: now)
-            let width = rows.map(\.label.count).max() ?? 0
-            for row in rows {
-                let item = NSMenuItem(title: "", action: nil, keyEquivalent: "")
-                item.attributedTitle = NSAttributedString(string: Formatting.menuLine(row, labelWidth: width), attributes: [.font: mono])
-                item.isEnabled = false
-                menu.addItem(item)
+        // Claude and ChatGPT rows share one label column so their percentages line up.
+        let claudeRows = showClaude ? state.snapshot.map { Formatting.menuRows(for: $0, now: now) } ?? [] : []
+        let chatGPTRows = showChatGPT ? chatGPTState.snapshot.map { Formatting.chatGPTMenuRows(for: $0, now: now) } ?? [] : []
+        let labelWidth = (claudeRows + chatGPTRows).map(\.label.count).max() ?? 0
+
+        for row in claudeRows {
+            addMonospaced(Formatting.menuLine(row, labelWidth: labelWidth), font: mono)
+        }
+        if showChatGPT, let chatGPTSnapshot = chatGPTState.snapshot {
+            if !claudeRows.isEmpty { menu.addItem(.separator()) }
+            if let planLine = Formatting.chatGPTPlanLine(for: chatGPTSnapshot) {
+                addMonospaced(planLine, font: mono)
+            }
+            for row in chatGPTRows {
+                addMonospaced(Formatting.menuLine(row, labelWidth: labelWidth), font: mono)
             }
         }
         if showOpenRouter, let creditsSnapshot = creditsState.snapshot {
-            let item = NSMenuItem(title: "", action: nil, keyEquivalent: "")
-            item.attributedTitle = NSAttributedString(string: Formatting.openRouterMenuLine(for: creditsSnapshot), attributes: [.font: mono])
-            item.isEnabled = false
-            menu.addItem(item)
+            if !claudeRows.isEmpty || !chatGPTRows.isEmpty { menu.addItem(.separator()) }
+            addMonospaced(Formatting.openRouterMenuLine(for: creditsSnapshot), font: mono)
         }
+
         let visibleSnapshotDate = (showClaude ? state.snapshot?.fetchedAt : nil)
+            ?? (showChatGPT ? chatGPTState.snapshot?.fetchedAt : nil)
             ?? (showOpenRouter ? creditsState.snapshot?.fetchedAt : nil)
         if let updatedAt = visibleSnapshotDate {
             menu.addItem(.separator())
             addDisabled("Updated \(Formatting.agoText(since: updatedAt, now: now))")
-        } else if !showClaude && !showOpenRouter {
-            addDisabled("Claude usage and OpenRouter credits are hidden")
+        } else if !showClaude && !showChatGPT && !showOpenRouter {
+            addDisabled("Claude, ChatGPT, and OpenRouter credits are hidden")
             menu.addItem(.separator())
-        } else if showClaude ? state.error == nil : creditsState.error == nil {
-            // The one visible-but-snapshotless provider is still on its first fetch.
+        } else if !anyVisibleError {
+            // Every visible provider is still on its first fetch.
             addDisabled("Loading…")
             menu.addItem(.separator())
         }
 
-        if showClaude || showOpenRouter {
+        if showClaude || showChatGPT || showOpenRouter {
             addAction("Refresh", #selector(refreshNow), key: "r")
         }
         if showClaude {
             addAction("Open usage page (claude.ai)", #selector(openUsagePage))
+        }
+        if showChatGPT, chatGPTState.snapshot != nil || chatGPTState.error.map({ $0 != .notSignedIn }) == true {
+            addAction("Open usage page (chatgpt.com)", #selector(openChatGPTUsagePage))
         }
         if showOpenRouter, creditsState.snapshot != nil || creditsState.error.map({ $0 != .notSignedIn }) == true {
             addAction("Open credits page (openrouter.ai)", #selector(openCreditsPage))
@@ -235,6 +269,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
 
         let claudeToggle = addAction("Show Claude usage", #selector(toggleClaudeUsage))
         claudeToggle.state = showClaude ? .on : .off
+        let chatGPTToggle = addAction("Show ChatGPT usage", #selector(toggleChatGPTUsage))
+        chatGPTToggle.state = showChatGPT ? .on : .off
         let openRouterToggle = addAction("Show OpenRouter credits", #selector(toggleOpenRouterCredits))
         openRouterToggle.state = showOpenRouter ? .on : .off
         menu.addItem(.separator())
@@ -262,8 +298,23 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
         menu.addItem(quit)
     }
 
+    /// True when a visible provider already put an error line in the menu, so "Loading…" would
+    /// contradict it.
+    private var anyVisibleError: Bool {
+        (preferences.showClaudeUsage && state.error != nil)
+            || (preferences.showChatGPTUsage && chatGPTState.error != nil)
+            || (preferences.showOpenRouterCredits && creditsState.error != nil)
+    }
+
     private func addDisabled(_ title: String) {
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        item.isEnabled = false
+        menu.addItem(item)
+    }
+
+    private func addMonospaced(_ title: String, font: NSFont) {
+        let item = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+        item.attributedTitle = NSAttributedString(string: title, attributes: [.font: font])
         item.isEnabled = false
         menu.addItem(item)
     }
@@ -281,6 +332,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
 
     @objc private func refreshNow() {
         if preferences.showClaudeUsage { Task { await poller.refresh(trigger: .manual) } }
+        if preferences.showChatGPTUsage { Task { await chatGPTPoller.refresh(trigger: .manual) } }
         if preferences.showOpenRouterCredits { Task { await creditsPoller.refresh(trigger: .manual) } }
     }
 
@@ -292,6 +344,12 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
         render(state)
     }
 
+    @objc private func toggleChatGPTUsage() {
+        preferences.showChatGPTUsage.toggle()
+        if preferences.showChatGPTUsage { chatGPTPoller.start() } else { chatGPTPoller.stop() }
+        render(state)
+    }
+
     @objc private func toggleOpenRouterCredits() {
         preferences.showOpenRouterCredits.toggle()
         if preferences.showOpenRouterCredits { creditsPoller.start() } else { creditsPoller.stop() }
@@ -300,6 +358,10 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
 
     @objc private func openUsagePage() {
         NSWorkspace.shared.open(Formatting.usagePageURL)
+    }
+
+    @objc private func openChatGPTUsagePage() {
+        NSWorkspace.shared.open(Formatting.chatGPTUsagePageURL)
     }
 
     @objc private func openCreditsPage() {
@@ -324,5 +386,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
         preferences.refreshInterval = seconds
         poller.interval = seconds
         creditsPoller.interval = seconds
+        // The ChatGPT poller clamps this to its own floor; see UsagePoller.minimumInterval.
+        chatGPTPoller.interval = seconds
     }
 }

@@ -10,9 +10,11 @@ final class Preferences: @unchecked Sendable {
         let seconds: TimeInterval
     }
 
-    // No sub-60s option: the usage endpoint is shared and rate-limited (it also backs the
-    // claude.ai usage page and the Claude Code status line), so polling faster than once a
-    // minute risks HTTP 429. 90 s is the default; 60 s is the floor for anyone who wants it.
+    // No sub-60s option: the usage endpoints are shared and rate-limited (Anthropic's also backs
+    // the claude.ai usage page and the Claude Code status line; ChatGPT's also backs the ChatGPT
+    // app and `codex`), so polling faster than once a minute risks HTTP 429. 90 s is the default;
+    // 60 s is the floor for anyone who wants it. Individual providers can raise that floor further
+    // for themselves — see the pollers built in main.swift.
     static let intervalOptions: [IntervalOption] = [
         IntervalOption(title: "60 s", seconds: 60),
         IntervalOption(title: "90 s", seconds: 90),
@@ -45,8 +47,9 @@ final class Preferences: @unchecked Sendable {
 
     private static let showClaudeKey = "showClaudeUsage"
     private static let showOpenRouterKey = "showOpenRouterCredits"
+    private static let showChatGPTKey = "showChatGPTUsage"
 
-    /// Both providers are on until the user turns one off. A provider that is off is dropped
+    /// Every provider is on until the user turns one off. A provider that is off is dropped
     /// from the menu bar title and its poller stays stopped, so nothing is fetched for it.
     var showClaudeUsage: Bool {
         get { defaults.object(forKey: Self.showClaudeKey) as? Bool ?? true }
@@ -56,6 +59,11 @@ final class Preferences: @unchecked Sendable {
     var showOpenRouterCredits: Bool {
         get { defaults.object(forKey: Self.showOpenRouterKey) as? Bool ?? true }
         set { defaults.set(newValue, forKey: Self.showOpenRouterKey) }
+    }
+
+    var showChatGPTUsage: Bool {
+        get { defaults.object(forKey: Self.showChatGPTKey) as? Bool ?? true }
+        set { defaults.set(newValue, forKey: Self.showChatGPTKey) }
     }
 
     /// True when the system reports the app registered as a login item.
