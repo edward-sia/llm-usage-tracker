@@ -38,13 +38,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // Every Claude client on this machine refreshes at the moment of wake, against the
             // same account-level limit. wake() drops the timer fire that was missed during
             // sleep and fetches once after a random delay, so this app polls after that burst.
-            // Each poller draws its own delay, which also spreads the two apart.
-            Task { @MainActor in poller.wake() }
-            Task { @MainActor in creditsPoller.wake() }
+            // Each poller draws its own delay, which also spreads the two apart. Providers
+            // the user toggled off are not fetched.
+            Task { @MainActor in if preferences.showClaudeUsage { poller.wake() } }
+            Task { @MainActor in if preferences.showOpenRouterCredits { creditsPoller.wake() } }
         }
 
-        poller.start()
-        creditsPoller.start()
+        if preferences.showClaudeUsage { poller.start() }
+        if preferences.showOpenRouterCredits { creditsPoller.start() }
     }
 
     func applicationWillTerminate(_ notification: Notification) {

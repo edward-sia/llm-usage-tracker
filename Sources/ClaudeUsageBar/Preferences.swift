@@ -1,8 +1,10 @@
 import Foundation
 import ServiceManagement
 
-/// User settings. Interval lives in UserDefaults; launch-at-login is asked of the system each time.
-final class Preferences {
+/// User settings. Interval and provider toggles live in UserDefaults; launch-at-login is
+/// asked of the system each time. `@unchecked Sendable` is sound because the class itself is
+/// stateless: every property reads through UserDefaults or SMAppService, both thread-safe.
+final class Preferences: @unchecked Sendable {
     struct IntervalOption: Equatable {
         let title: String
         let seconds: TimeInterval
@@ -37,6 +39,23 @@ final class Preferences {
             return stored >= Self.minInterval ? stored : Self.defaultInterval
         }
         set { defaults.set(newValue, forKey: Self.intervalKey) }
+    }
+
+    // MARK: Provider toggles
+
+    private static let showClaudeKey = "showClaudeUsage"
+    private static let showOpenRouterKey = "showOpenRouterCredits"
+
+    /// Both providers are on until the user turns one off. A provider that is off is dropped
+    /// from the menu bar title and its poller stays stopped, so nothing is fetched for it.
+    var showClaudeUsage: Bool {
+        get { defaults.object(forKey: Self.showClaudeKey) as? Bool ?? true }
+        set { defaults.set(newValue, forKey: Self.showClaudeKey) }
+    }
+
+    var showOpenRouterCredits: Bool {
+        get { defaults.object(forKey: Self.showOpenRouterKey) as? Bool ?? true }
+        set { defaults.set(newValue, forKey: Self.showOpenRouterKey) }
     }
 
     /// True when the system reports the app registered as a login item.
