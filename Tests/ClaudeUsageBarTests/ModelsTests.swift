@@ -2,13 +2,13 @@ import XCTest
 @testable import ClaudeUsageBarCore
 
 final class ModelsTests: XCTestCase {
-    private let snapshot = UsageSnapshot(
-        buckets: [UsageBucket(kind: .session, percent: 25, resetsAt: nil)],
+    private let snapshot = ClaudeUsageSnapshot(
+        buckets: [ClaudeUsageBucket(kind: .session, percent: 25, resetsAt: nil)],
         fetchedAt: Date(timeIntervalSince1970: 1_000)
     )
 
     func testIdleHasNoSnapshotOrError() {
-        let state = FetchState<UsageSnapshot>.idle
+        let state = FetchState<ClaudeUsageSnapshot>.idle
         XCTAssertNil(state.snapshot)
         XCTAssertNil(state.error)
     }
@@ -26,7 +26,7 @@ final class ModelsTests: XCTestCase {
     }
 
     func testFailedWithoutLastSnapshot() {
-        let state = FetchState<UsageSnapshot>.failed(.notSignedIn, last: nil)
+        let state = FetchState<ClaudeUsageSnapshot>.failed(.notSignedIn, last: nil)
         XCTAssertEqual(state.error, .notSignedIn)
         XCTAssertNil(state.snapshot)
     }

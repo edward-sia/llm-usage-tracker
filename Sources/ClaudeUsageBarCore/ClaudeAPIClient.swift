@@ -1,7 +1,7 @@
 import Foundation
 
 /// Calls Anthropic's OAuth usage endpoint with a Claude Code access token.
-public struct UsageAPIClient {
+public struct ClaudeAPIClient {
     public static let endpoint = URL(string: "https://api.anthropic.com/api/oauth/usage")!
     public static let timeout: TimeInterval = 10
 
@@ -12,7 +12,7 @@ public struct UsageAPIClient {
     }
 
     /// Fetches and decodes usage. Throws `UsageError` only.
-    public func fetchUsage(token: String, now: Date = Date()) async throws -> UsageSnapshot {
+    public func fetchUsage(token: String, now: Date = Date()) async throws -> ClaudeUsageSnapshot {
         var request = URLRequest(url: Self.endpoint)
         request.httpMethod = "GET"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -35,6 +35,6 @@ public struct UsageAPIClient {
         case 429: throw UsageError.rateLimited(retryAfter: RetryAfter.seconds(from: http))
         default: throw UsageError.http(http.statusCode)
         }
-        return try UsageResponseDecoder.decode(data, fetchedAt: now)
+        return try ClaudeUsageDecoder.decode(data, fetchedAt: now)
     }
 }

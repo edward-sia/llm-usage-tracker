@@ -1,7 +1,7 @@
 import Foundation
 
 /// A successful read of the OpenRouter credits API.
-public struct CreditsSnapshot: TimestampedSnapshot {
+public struct OpenRouterCreditsSnapshot: TimestampedSnapshot {
     /// Total credits ever purchased, in USD.
     public let totalCredits: Double
     /// Total credits ever spent, in USD.

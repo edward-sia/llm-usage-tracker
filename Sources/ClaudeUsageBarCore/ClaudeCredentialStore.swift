@@ -4,7 +4,7 @@ import Foundation
 ///
 /// Order: macOS Keychain (via the `security` CLI, same as Claude Code itself, so no
 /// permission prompt), then `~/.claude/.credentials.json` for file-based installs.
-public struct CredentialStore {
+public struct ClaudeCredentialStore {
     public typealias CommandRunner = (_ executable: String, _ arguments: [String]) -> String?
 
     public static let keychainService = "Claude Code-credentials"
@@ -13,7 +13,7 @@ public struct CredentialStore {
     private let credentialsFileURL: URL
 
     public init(
-        runCommand: @escaping CommandRunner = { CredentialStore.runProcess($0, $1) },
+        runCommand: @escaping CommandRunner = { ClaudeCredentialStore.runProcess($0, $1) },
         credentialsFileURL: URL = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".claude/.credentials.json")
     ) {

@@ -1,7 +1,8 @@
 import Foundation
 
 /// Display strings for the ChatGPT provider. Kept in its own file so `Formatting.swift` stays
-/// about the shared pieces and the Claude limits.
+/// about the pieces every provider shares — the same split `FormattingClaude.swift` and
+/// `FormattingOpenRouter.swift` follow.
 extension Formatting {
     public static let chatGPTUsagePageURL = URL(string: "https://chatgpt.com/codex/settings/usage")!
 

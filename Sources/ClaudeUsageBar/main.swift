@@ -4,8 +4,8 @@ import ClaudeUsageBarCore
 /// Holds the object graph for the life of the process and wires system events to the pollers.
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private var poller: UsagePoller<UsageSnapshot, String>?
-    private var creditsPoller: UsagePoller<CreditsSnapshot, String>?
+    private var poller: UsagePoller<ClaudeUsageSnapshot, String>?
+    private var creditsPoller: UsagePoller<OpenRouterCreditsSnapshot, String>?
     private var chatGPTPoller: UsagePoller<ChatGPTUsageSnapshot, ChatGPTCredentials>?
     private var statusItem: StatusItemController?
     private var wakeObserver: NSObjectProtocol?
@@ -19,8 +19,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let chatGPTMinimumInterval: TimeInterval = 180
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        let credentials = CredentialStore()
-        let client = UsageAPIClient()
+        let credentials = ClaudeCredentialStore()
+        let client = ClaudeAPIClient()
         let openRouterKeys = OpenRouterKeyStore()
         let openRouterClient = OpenRouterAPIClient()
         let chatGPTAuth = ChatGPTAuthStore()
