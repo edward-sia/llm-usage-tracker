@@ -1,7 +1,7 @@
 import XCTest
-@testable import ClaudeUsageBarCore
+@testable import LLMUsageBarCore
 
-final class CredentialStoreTests: XCTestCase {
+final class ClaudeCredentialStoreTests: XCTestCase {
     private let blob = #"{"claudeAiOauth":{"accessToken":"sk-ant-oat01-TEST","refreshToken":"sk-ant-ort01-X","expiresAt":1755509769617,"scopes":["user:inference"],"subscriptionType":"max"}}"#
 
     private func missingFile() -> URL {
@@ -9,26 +9,26 @@ final class CredentialStoreTests: XCTestCase {
     }
 
     func testParsesAccessTokenFromJSON() {
-        XCTAssertEqual(CredentialStore.parseAccessToken(from: blob), "sk-ant-oat01-TEST")
+        XCTAssertEqual(ClaudeCredentialStore.parseAccessToken(from: blob), "sk-ant-oat01-TEST")
     }
 
     func testParsesHexEncodedJSON() {
         // `security -w` prints hex when the secret is stored as binary data.
         let hex = blob.utf8.map { String(format: "%02x", $0) }.joined()
-        XCTAssertEqual(CredentialStore.parseAccessToken(from: hex), "sk-ant-oat01-TEST")
+        XCTAssertEqual(ClaudeCredentialStore.parseAccessToken(from: hex), "sk-ant-oat01-TEST")
     }
 
     func testRejectsMissingOrEmptyToken() {
-        XCTAssertNil(CredentialStore.parseAccessToken(from: #"{"claudeAiOauth":{"accessToken":""}}"#))
-        XCTAssertNil(CredentialStore.parseAccessToken(from: #"{"claudeAiOauth":{}}"#))
-        XCTAssertNil(CredentialStore.parseAccessToken(from: #"{"other":1}"#))
-        XCTAssertNil(CredentialStore.parseAccessToken(from: "not json"))
-        XCTAssertNil(CredentialStore.parseAccessToken(from: ""))
+        XCTAssertNil(ClaudeCredentialStore.parseAccessToken(from: #"{"claudeAiOauth":{"accessToken":""}}"#))
+        XCTAssertNil(ClaudeCredentialStore.parseAccessToken(from: #"{"claudeAiOauth":{}}"#))
+        XCTAssertNil(ClaudeCredentialStore.parseAccessToken(from: #"{"other":1}"#))
+        XCTAssertNil(ClaudeCredentialStore.parseAccessToken(from: "not json"))
+        XCTAssertNil(ClaudeCredentialStore.parseAccessToken(from: ""))
     }
 
     func testUsesKeychainCommandFirst() throws {
         var calls: [(String, [String])] = []
-        let store = CredentialStore(runCommand: { exe, args in calls.append((exe, args)); return self.blob },
+        let store = ClaudeCredentialStore(runCommand: { exe, args in calls.append((exe, args)); return self.blob },
                                     credentialsFileURL: missingFile())
         XCTAssertEqual(try store.accessToken(), "sk-ant-oat01-TEST")
         XCTAssertEqual(calls.count, 1)
@@ -40,19 +40,19 @@ final class CredentialStoreTests: XCTestCase {
         let file = FileManager.default.temporaryDirectory.appendingPathComponent("creds-\(UUID().uuidString).json")
         try blob.write(to: file, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(at: file) }
-        let store = CredentialStore(runCommand: { _, _ in nil }, credentialsFileURL: file)
+        let store = ClaudeCredentialStore(runCommand: { _, _ in nil }, credentialsFileURL: file)
         XCTAssertEqual(try store.accessToken(), "sk-ant-oat01-TEST")
     }
 
     func testThrowsNotSignedInWhenNothingAvailable() {
-        let store = CredentialStore(runCommand: { _, _ in nil }, credentialsFileURL: missingFile())
+        let store = ClaudeCredentialStore(runCommand: { _, _ in nil }, credentialsFileURL: missingFile())
         XCTAssertThrowsError(try store.accessToken()) { error in
             XCTAssertEqual(error as? UsageError, .notSignedIn)
         }
     }
 
     func testThrowsNotSignedInWhenKeychainBlobHasNoToken() {
-        let store = CredentialStore(runCommand: { _, _ in #"{"claudeAiOauth":{}}"# }, credentialsFileURL: missingFile())
+        let store = ClaudeCredentialStore(runCommand: { _, _ in #"{"claudeAiOauth":{}}"# }, credentialsFileURL: missingFile())
         XCTAssertThrowsError(try store.accessToken()) { error in
             XCTAssertEqual(error as? UsageError, .notSignedIn)
         }
@@ -60,16 +60,16 @@ final class CredentialStoreTests: XCTestCase {
 
     func testRunProcessTimesOutAndReturnsNil() {
         let start = Date()
-        let result = CredentialStore.runProcess("/bin/sleep", ["5"], timeout: 0.3)
+        let result = ClaudeCredentialStore.runProcess("/bin/sleep", ["5"], timeout: 0.3)
         XCTAssertNil(result)
         XCTAssertLessThan(Date().timeIntervalSince(start), 2, "a timed-out process must not block the caller")
     }
 
     func testRunProcessReturnsTrimmedStdout() {
-        XCTAssertEqual(CredentialStore.runProcess("/bin/echo", ["  hi  "]), "hi")
+        XCTAssertEqual(ClaudeCredentialStore.runProcess("/bin/echo", ["  hi  "]), "hi")
     }
 
     func testRunProcessReturnsNilOnNonZeroExit() {
-        XCTAssertNil(CredentialStore.runProcess("/bin/sh", ["-c", "exit 3"]))
+        XCTAssertNil(ClaudeCredentialStore.runProcess("/bin/sh", ["-c", "exit 3"]))
     }
 }

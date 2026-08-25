@@ -28,7 +28,7 @@ public enum RateLimitPolicy {
 /// - A provider can raise its own polling floor with `minimumInterval` and widen the window in
 ///   which opportunistic fetches are skipped with `opportunisticStaleAfter`. Both exist to keep
 ///   this app off shared, rate-limited usage endpoints.
-/// - Every fetch outcome goes to the unified log (subsystem dev.llm-usage-tracker.ClaudeUsageBar).
+/// - Every fetch outcome goes to the unified log (subsystem dev.llm-usage-tracker.LLMUsageBar).
 ///
 /// Generic over the credential type as well as the snapshot type: Claude and OpenRouter each
 /// authenticate with a bare token string, while ChatGPT needs a token plus an account id.
@@ -37,7 +37,7 @@ public final class UsagePoller<Snapshot: TimestampedSnapshot, Credential: Sendab
     public typealias CredentialProvider = () throws -> Credential
     public typealias Fetcher = (_ credential: Credential) async throws -> Snapshot
 
-    public static var logSubsystem: String { "dev.llm-usage-tracker.ClaudeUsageBar" }
+    public static var logSubsystem: String { "dev.llm-usage-tracker.LLMUsageBar" }
     public static var rateLimitBackoff: TimeInterval { RateLimitPolicy.minBackoff }
 
     public private(set) var state: FetchState<Snapshot> = .idle {

@@ -1,19 +1,19 @@
 import XCTest
-@testable import ClaudeUsageBarCore
+@testable import LLMUsageBarCore
 
-final class UsageAPIClientTests: XCTestCase {
+final class ClaudeAPIClientTests: XCTestCase {
     private let now = Date(timeIntervalSince1970: 1_755_520_000)
-    private var client: UsageAPIClient!
+    private var client: ClaudeAPIClient!
 
     override func setUp() {
         super.setUp()
         StubURLProtocol.handler = nil
         StubURLProtocol.lastRequest = nil
-        client = UsageAPIClient(session: StubURLProtocol.session())
+        client = ClaudeAPIClient(session: StubURLProtocol.session())
     }
 
     private func fixture() throws -> String {
-        let url = try XCTUnwrap(Bundle.module.url(forResource: "usage-response", withExtension: "json", subdirectory: "Fixtures"))
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "claude-usage", withExtension: "json", subdirectory: "Fixtures"))
         return try String(contentsOf: url, encoding: .utf8)
     }
 

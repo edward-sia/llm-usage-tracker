@@ -28,6 +28,32 @@ final class Preferences: @unchecked Sendable {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        migrateLegacyDefaultsIfNeeded()
+    }
+
+    // MARK: Migration from the ClaudeUsageBar bundle id
+
+    /// UserDefaults is keyed by bundle id, so renaming the app to LLMUsageBar left the settings
+    /// behind in the old domain. Copy them across once, then never look again.
+    ///
+    /// Reading another domain works because the app is not sandboxed. If it ever is, this
+    /// quietly finds nothing and every setting falls back to its default — which is also what
+    /// happens for anyone who never ran the old build.
+    private static let legacyDomain = "dev.llm-usage-tracker.ClaudeUsageBar"
+    private static let migratedKey = "migratedFromClaudeUsageBar"
+
+    private func migrateLegacyDefaultsIfNeeded() {
+        guard !defaults.bool(forKey: Self.migratedKey) else { return }
+        defaults.set(true, forKey: Self.migratedKey)
+
+        guard let legacy = UserDefaults(suiteName: Self.legacyDomain) else { return }
+        for key in [Self.intervalKey, Self.showClaudeKey, Self.showOpenRouterKey, Self.showChatGPTKey] {
+            // Anything already set in the new domain wins: a value there was chosen after the
+            // rename, so it is newer than whatever the old domain still holds.
+            guard defaults.object(forKey: key) == nil,
+                  let value = legacy.object(forKey: key) else { continue }
+            defaults.set(value, forKey: key)
+        }
     }
 
     /// The floor also migrates anyone who had picked the old 30 s option (removed because it

@@ -1,23 +1,23 @@
 import AppKit
-import ClaudeUsageBarCore
+import LLMUsageBarCore
 
 /// Owns the NSStatusItem: renders the title/tooltip from FetchState and builds the click menu.
 @MainActor
 final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
     private let statusItem: NSStatusItem
-    private let poller: UsagePoller<UsageSnapshot, String>
-    private let creditsPoller: UsagePoller<CreditsSnapshot, String>
+    private let poller: UsagePoller<ClaudeUsageSnapshot, String>
+    private let creditsPoller: UsagePoller<OpenRouterCreditsSnapshot, String>
     private let chatGPTPoller: UsagePoller<ChatGPTUsageSnapshot, ChatGPTCredentials>
     private let preferences: Preferences
     private let menu = NSMenu()
-    private var state: FetchState<UsageSnapshot> = .idle
-    private var creditsState: FetchState<CreditsSnapshot> = .idle
+    private var state: FetchState<ClaudeUsageSnapshot> = .idle
+    private var creditsState: FetchState<OpenRouterCreditsSnapshot> = .idle
     private var chatGPTState: FetchState<ChatGPTUsageSnapshot> = .idle
     private var isMenuOpen = false
     private var appearanceObservation: NSKeyValueObservation?
 
-    init(poller: UsagePoller<UsageSnapshot, String>,
-         creditsPoller: UsagePoller<CreditsSnapshot, String>,
+    init(poller: UsagePoller<ClaudeUsageSnapshot, String>,
+         creditsPoller: UsagePoller<OpenRouterCreditsSnapshot, String>,
          chatGPTPoller: UsagePoller<ChatGPTUsageSnapshot, ChatGPTCredentials>,
          preferences: Preferences) {
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -27,7 +27,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
         self.preferences = preferences
         super.init()
 
-        statusItem.autosaveName = "ClaudeUsageBar"
+        statusItem.autosaveName = "LLMUsageBar"
         menu.delegate = self
         menu.autoenablesItems = false
         statusItem.menu = menu
@@ -65,7 +65,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
     private func titleGroups() -> [TitleGroup] {
         var groups: [TitleGroup] = []
         if preferences.showClaudeUsage {
-            groups.append(TitleGroup(icon: ProviderIcons.claude(), segments: Formatting.titleSegments(for: state)))
+            groups.append(TitleGroup(icon: ProviderIcons.claude(), segments: Formatting.claudeTitleSegments(for: state)))
         }
         if preferences.showChatGPTUsage {
             // The logo identifies the provider, so the window labels ("5h", "W") are the only text.
@@ -84,7 +84,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
         return groups
     }
 
-    private func render(_ state: FetchState<UsageSnapshot>) {
+    private func render(_ state: FetchState<ClaudeUsageSnapshot>) {
         self.state = state
         guard let button = statusItem.button else { return }
         button.attributedTitle = Self.attributedTitle(groups: titleGroups())
@@ -104,9 +104,9 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
         }
         // A hidden provider goes in as .idle, which Formatting treats as nothing to say.
         return Formatting.tooltip(
-            for: preferences.showClaudeUsage ? state : .idle,
-            credits: preferences.showOpenRouterCredits ? creditsState : .idle,
+            claude: preferences.showClaudeUsage ? state : .idle,
             chatGPT: preferences.showChatGPTUsage ? chatGPTState : .idle,
+            openRouter: preferences.showOpenRouterCredits ? creditsState : .idle,
             now: Date()
         )
     }
@@ -221,7 +221,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
         let showOpenRouter = preferences.showOpenRouterCredits
 
         if showClaude, let error = state.error {
-            addDisabled(Formatting.errorMessage(error, last: state.snapshot, now: now))
+            addDisabled(Formatting.claudeErrorMessage(error, last: state.snapshot, now: now))
             menu.addItem(.separator())
         }
         if showChatGPT, let chatGPTError = chatGPTState.error,
@@ -236,7 +236,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
         }
 
         // Claude and ChatGPT rows share one label column so their percentages line up.
-        let claudeRows = showClaude ? state.snapshot.map { Formatting.menuRows(for: $0, now: now) } ?? [] : []
+        let claudeRows = showClaude ? state.snapshot.map { Formatting.claudeMenuRows(for: $0, now: now) } ?? [] : []
         let chatGPTRows = showChatGPT ? chatGPTState.snapshot.map { Formatting.chatGPTMenuRows(for: $0, now: now) } ?? [] : []
         let labelWidth = (claudeRows + chatGPTRows).map(\.label.count).max() ?? 0
 
@@ -312,7 +312,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
         menu.addItem(intervalItem)
         menu.addItem(.separator())
 
-        let quit = NSMenuItem(title: "Quit Claude Usage Bar", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let quit = NSMenuItem(title: "Quit LLM Usage Bar", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         quit.target = NSApp
         menu.addItem(quit)
     }
@@ -376,7 +376,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
     }
 
     @objc private func openUsagePage() {
-        NSWorkspace.shared.open(Formatting.usagePageURL)
+        NSWorkspace.shared.open(Formatting.claudeUsagePageURL)
     }
 
     @objc private func openChatGPTUsagePage() {
@@ -393,7 +393,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
         } catch {
             let alert = NSAlert()
             alert.messageText = "Could not change Launch at login"
-            alert.informativeText = "This only works when the app runs from an installed bundle (run `make install` and start /Applications/ClaudeUsageBar.app).\n\n\(error.localizedDescription)"
+            alert.informativeText = "This only works when the app runs from an installed bundle (run `make install` and start /Applications/LLMUsageBar.app).\n\n\(error.localizedDescription)"
             alert.alertStyle = .warning
             NSApp.activate(ignoringOtherApps: true)
             alert.runModal()

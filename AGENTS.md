@@ -1,7 +1,7 @@
 # Install guide for AI coding agents
 
 This file is a self-contained recipe for an AI coding agent (Claude Code,
-Cursor, etc.) to build and install **Claude Usage Bar** on the user's Mac. A
+Cursor, etc.) to build and install **LLM Usage Bar** on the user's Mac. A
 human can follow it too. Do the steps in order and check each result before
 moving on. Do not skip the verification steps.
 
@@ -82,15 +82,15 @@ a broken build.
 make install
 ```
 
-This builds a release binary, wraps it in `ClaudeUsageBar.app`, ad-hoc signs
+This builds a release binary, wraps it in `LLMUsageBar.app`, ad-hoc signs
 it, copies it to `/Applications`, kills any running copy, and launches the new
 one.
 
 ## Step 4: Verify it is running
 
 ```bash
-pgrep -x ClaudeUsageBar && echo "running"
-codesign -dv /Applications/ClaudeUsageBar.app 2>&1 | grep -i "signature="   # Signature=adhoc
+pgrep -x LLMUsageBar && echo "running"
+codesign -dv /Applications/LLMUsageBar.app 2>&1 | grep -i "signature="   # Signature=adhoc
 ```
 
 Then tell the user: **look at the top-right of your menu bar — you should see
@@ -114,11 +114,11 @@ every fetch it deliberately skips). This is the first place to look when the
 user asks "why does it say rate limited" or "why are my numbers stale".
 
 ```bash
-/usr/bin/log show --last 6h --info --predicate 'subsystem == "dev.llm-usage-tracker.ClaudeUsageBar"' --style compact
+/usr/bin/log show --last 6h --info --predicate 'subsystem == "dev.llm-usage-tracker.LLMUsageBar"' --style compact
 ```
 
 Use the full path `/usr/bin/log` — plain `log` is a zsh builtin and fails with
-"too many arguments". Add `AND process == "ClaudeUsageBar"` to the predicate to
+"too many arguments". Add `AND process == "LLMUsageBar"` to the predicate to
 exclude lines emitted by test runs. `log stream` with the same predicate
 watches live.
 
@@ -161,12 +161,30 @@ git pull
 make install
 ```
 
+The app used to be called **Claude Usage Bar** and installed as
+`ClaudeUsageBar.app`. If the user is upgrading from a build older than the
+rename, tell them two things before you run `make install`:
+
+- Turn off **Launch at login** from the old app's click menu first. macOS
+  registers login items by bundle id, so an item pointing at the old bundle
+  survives the rename and keeps trying to start an app that is no longer there.
+- `make install` deletes `/Applications/ClaudeUsageBar.app` along with the new
+  bundle it replaces. That is deliberate — leaving it would put two copies of
+  the same app in the menu bar — but it is a deletion, so say it out loud
+  rather than letting them discover it.
+
+Their refresh interval and per-provider toggles carry over on first launch: the
+app copies them from the old bundle id's preferences once. The menu bar item's
+position is not carried over, so it may appear somewhere else along the bar.
+
 ## Uninstalling
 
 ```bash
-pkill -x ClaudeUsageBar
-rm -rf /Applications/ClaudeUsageBar.app
+make uninstall
 ```
+
+That kills the running app and removes `/Applications/LLMUsageBar.app`, plus
+`/Applications/ClaudeUsageBar.app` if a pre-rename copy is still there.
 
 Also turn off Launch at login from the menu first if it was enabled. Removing
 the app does not touch any of the credentials it read — the Claude Code Keychain item,

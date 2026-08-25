@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Builds the release binary and wraps it in a minimal .app bundle at build/ClaudeUsageBar.app.
+# Builds the release binary and wraps it in a minimal .app bundle at build/LLMUsageBar.app.
 # The bundle is what makes "Launch at login" work and keeps the app out of the Dock (LSUIElement).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-APP_NAME="ClaudeUsageBar"
-DISPLAY_NAME="Claude Usage Bar"
-BUNDLE_ID="${BUNDLE_ID:-dev.llm-usage-tracker.ClaudeUsageBar}"
+APP_NAME="LLMUsageBar"
+DISPLAY_NAME="LLM Usage Bar"
+BUNDLE_ID="${BUNDLE_ID:-dev.llm-usage-tracker.LLMUsageBar}"
 VERSION="${VERSION:-0.1.0}"
 BUILD_NUMBER="${BUILD_NUMBER:-1}"
 

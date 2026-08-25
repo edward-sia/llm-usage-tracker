@@ -1,5 +1,5 @@
 import XCTest
-@testable import ClaudeUsageBarCore
+@testable import LLMUsageBarCore
 
 final class OpenRouterAPIClientTests: XCTestCase {
     private let now = Date(timeIntervalSince1970: 1_755_520_000)

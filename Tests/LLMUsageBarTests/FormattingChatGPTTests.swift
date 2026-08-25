@@ -1,5 +1,5 @@
 import XCTest
-@testable import ClaudeUsageBarCore
+@testable import LLMUsageBarCore
 
 final class FormattingChatGPTTests: XCTestCase {
     private let tz = TimeZone(identifier: "Australia/Sydney")!
@@ -151,12 +151,12 @@ final class FormattingChatGPTTests: XCTestCase {
     // MARK: Combined tooltip ordering
 
     func testCombinedTooltipOrdersClaudeThenChatGPTThenOpenRouter() {
-        let claude = UsageSnapshot(buckets: [UsageBucket(kind: .session, percent: 25, resetsAt: nil)],
+        let claude = ClaudeUsageSnapshot(buckets: [ClaudeUsageBucket(kind: .session, percent: 25, resetsAt: nil)],
                                    fetchedAt: now.addingTimeInterval(-1_000))
-        let credits = CreditsSnapshot(totalCredits: 500, totalUsage: 487.66, fetchedAt: now.addingTimeInterval(-1_000))
-        let text = Formatting.tooltip(for: .loaded(claude),
-                                      credits: .loaded(credits),
+        let credits = OpenRouterCreditsSnapshot(totalCredits: 500, totalUsage: 487.66, fetchedAt: now.addingTimeInterval(-1_000))
+        let text = Formatting.tooltip(claude: .loaded(claude),
                                       chatGPT: .loaded(snapshot([window(7, seconds: 2_592_000)])),
+                                      openRouter: .loaded(credits),
                                       now: now, timeZone: tz, locale: locale)
         XCTAssertEqual(text, """
         Session (5h): 25%
@@ -169,14 +169,14 @@ final class FormattingChatGPTTests: XCTestCase {
     /// With every other provider quiet, "not signed in" is the only thing that explains the
     /// empty tooltip, so it gets said.
     func testCombinedTooltipExplainsAMissingChatGPTLoginWhenNothingElseSpeaks() {
-        let text = Formatting.tooltip(for: .idle, credits: .idle, chatGPT: .failed(.notSignedIn, last: nil), now: now)
+        let text = Formatting.tooltip(claude: .idle, chatGPT: .failed(.notSignedIn, last: nil), openRouter: .idle, now: now)
         XCTAssertTrue(text.hasPrefix("Not signed in to ChatGPT."), text)
     }
 
     func testCombinedTooltipStaysQuietAboutAMissingLoginWhenOtherProvidersHaveNumbers() {
-        let claude = UsageSnapshot(buckets: [UsageBucket(kind: .session, percent: 25, resetsAt: nil)],
+        let claude = ClaudeUsageSnapshot(buckets: [ClaudeUsageBucket(kind: .session, percent: 25, resetsAt: nil)],
                                    fetchedAt: now.addingTimeInterval(-1_000))
-        let text = Formatting.tooltip(for: .loaded(claude), chatGPT: .failed(.notSignedIn, last: nil), now: now)
+        let text = Formatting.tooltip(claude: .loaded(claude), chatGPT: .failed(.notSignedIn, last: nil), now: now)
         XCTAssertFalse(text.contains("ChatGPT"), text)
     }
 

@@ -1,5 +1,5 @@
 import XCTest
-@testable import ClaudeUsageBarCore
+@testable import LLMUsageBarCore
 
 final class ChatGPTAuthStoreTests: XCTestCase {
     private var directory: URL!

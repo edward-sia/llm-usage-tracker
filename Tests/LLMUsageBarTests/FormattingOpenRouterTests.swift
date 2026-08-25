@@ -1,11 +1,11 @@
 import XCTest
-@testable import ClaudeUsageBarCore
+@testable import LLMUsageBarCore
 
 final class FormattingOpenRouterTests: XCTestCase {
     private let now = Date(timeIntervalSince1970: 2_000)
 
-    private func credits(_ remaining: Double, of total: Double = 500) -> CreditsSnapshot {
-        CreditsSnapshot(totalCredits: total, totalUsage: total - remaining, fetchedAt: Date(timeIntervalSince1970: 1_000))
+    private func credits(_ remaining: Double, of total: Double = 500) -> OpenRouterCreditsSnapshot {
+        OpenRouterCreditsSnapshot(totalCredits: total, totalUsage: total - remaining, fetchedAt: Date(timeIntervalSince1970: 1_000))
     }
 
     // MARK: Severity thresholds ($5 amber, $1 red)
@@ -136,24 +136,24 @@ final class FormattingOpenRouterTests: XCTestCase {
 
     // MARK: Combined tooltip
 
-    private let usage = UsageSnapshot(
-        buckets: [UsageBucket(kind: .session, percent: 25, resetsAt: nil)],
+    private let usage = ClaudeUsageSnapshot(
+        buckets: [ClaudeUsageBucket(kind: .session, percent: 25, resetsAt: nil)],
         fetchedAt: Date(timeIntervalSince1970: 1_000)
     )
 
     func testCombinedTooltipPutsCreditLinesBeforeUpdated() {
-        let text = Formatting.tooltip(for: .loaded(usage), credits: .loaded(credits(12.34)), now: now)
+        let text = Formatting.tooltip(claude: .loaded(usage), openRouter: .loaded(credits(12.34)), now: now)
         XCTAssertEqual(text, "Session (5h): 25%\nOpenRouter credits: $12.34 remaining\nUpdated 16 min ago")
     }
 
     func testCombinedTooltipShowsCreditsAloneWhileClaudeIsIdle() {
         // With Claude idle (or hidden) the "Updated" age falls through to the credits snapshot.
-        let text = Formatting.tooltip(for: .idle, credits: .loaded(credits(12.34)), now: now)
+        let text = Formatting.tooltip(claude: .idle, openRouter: .loaded(credits(12.34)), now: now)
         XCTAssertEqual(text, "OpenRouter credits: $12.34 remaining\nUpdated 16 min ago")
     }
 
     func testCombinedTooltipWithoutCreditsMatchesClaudeOnlyTooltip() {
-        XCTAssertEqual(Formatting.tooltip(for: .loaded(usage), credits: .idle, now: now),
-                       Formatting.tooltip(for: .loaded(usage), now: now))
+        XCTAssertEqual(Formatting.tooltip(claude: .loaded(usage), openRouter: .idle, now: now),
+                       Formatting.tooltip(claude: .loaded(usage), now: now))
     }
 }

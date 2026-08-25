@@ -12,7 +12,7 @@ public struct OpenRouterAPIClient {
     }
 
     /// Fetches and decodes the credit balance. Throws `UsageError` only.
-    public func fetchCredits(key: String, now: Date = Date()) async throws -> CreditsSnapshot {
+    public func fetchCredits(key: String, now: Date = Date()) async throws -> OpenRouterCreditsSnapshot {
         var request = URLRequest(url: Self.endpoint)
         request.httpMethod = "GET"
         request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
@@ -46,12 +46,12 @@ public struct OpenRouterAPIClient {
     }
 
     /// Turns the credits JSON (`{"data":{"total_credits":…,"total_usage":…}}`) into a snapshot.
-    public static func decode(_ data: Data, fetchedAt: Date) throws -> CreditsSnapshot {
+    public static func decode(_ data: Data, fetchedAt: Date) throws -> OpenRouterCreditsSnapshot {
         guard let response = try? JSONDecoder().decode(Response.self, from: data),
               let credits = response.data?.total_credits,
               let usage = response.data?.total_usage else {
             throw UsageError.decoding
         }
-        return CreditsSnapshot(totalCredits: credits, totalUsage: usage, fetchedAt: fetchedAt)
+        return OpenRouterCreditsSnapshot(totalCredits: credits, totalUsage: usage, fetchedAt: fetchedAt)
     }
 }
