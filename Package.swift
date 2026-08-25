@@ -2,18 +2,18 @@
 import PackageDescription
 
 let package = Package(
-    name: "ClaudeUsageBar",
+    name: "LLMUsageBar",
     platforms: [.macOS(.v14)],
     products: [
-        .executable(name: "ClaudeUsageBar", targets: ["ClaudeUsageBar"]),
-        .library(name: "ClaudeUsageBarCore", targets: ["ClaudeUsageBarCore"]),
+        .executable(name: "LLMUsageBar", targets: ["LLMUsageBar"]),
+        .library(name: "LLMUsageBarCore", targets: ["LLMUsageBarCore"]),
     ],
     targets: [
-        .target(name: "ClaudeUsageBarCore"),
-        .executableTarget(name: "ClaudeUsageBar", dependencies: ["ClaudeUsageBarCore"]),
+        .target(name: "LLMUsageBarCore"),
+        .executableTarget(name: "LLMUsageBar", dependencies: ["LLMUsageBarCore"]),
         .testTarget(
-            name: "ClaudeUsageBarTests",
-            dependencies: ["ClaudeUsageBarCore"],
+            name: "LLMUsageBarTests",
+            dependencies: ["LLMUsageBarCore"],
             resources: [.copy("Fixtures")]
         ),
     ]

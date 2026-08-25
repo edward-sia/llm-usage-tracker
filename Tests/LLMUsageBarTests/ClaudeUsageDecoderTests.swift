@@ -1,5 +1,5 @@
 import XCTest
-@testable import ClaudeUsageBarCore
+@testable import LLMUsageBarCore
 
 final class ClaudeUsageDecoderTests: XCTestCase {
     private let now = Date(timeIntervalSince1970: 1_787_020_740) // arbitrary fixed instant used as fetchedAt

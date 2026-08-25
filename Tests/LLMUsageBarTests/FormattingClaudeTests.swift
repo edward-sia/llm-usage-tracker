@@ -1,5 +1,5 @@
 import XCTest
-@testable import ClaudeUsageBarCore
+@testable import LLMUsageBarCore
 
 /// Everything Formatting produces for the Claude provider: labels, menu bar title, menu rows,
 /// error lines, and the Claude part of the tooltip.

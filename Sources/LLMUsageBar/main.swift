@@ -1,5 +1,5 @@
 import AppKit
-import ClaudeUsageBarCore
+import LLMUsageBarCore
 
 /// Holds the object graph for the life of the process and wires system events to the pollers.
 @MainActor

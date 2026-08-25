@@ -1,5 +1,5 @@
 import XCTest
-@testable import ClaudeUsageBarCore
+@testable import LLMUsageBarCore
 
 final class ClaudeCredentialStoreTests: XCTestCase {
     private let blob = #"{"claudeAiOauth":{"accessToken":"sk-ant-oat01-TEST","refreshToken":"sk-ant-ort01-X","expiresAt":1755509769617,"scopes":["user:inference"],"subscriptionType":"max"}}"#

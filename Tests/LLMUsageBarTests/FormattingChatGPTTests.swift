@@ -1,5 +1,5 @@
 import XCTest
-@testable import ClaudeUsageBarCore
+@testable import LLMUsageBarCore
 
 final class FormattingChatGPTTests: XCTestCase {
     private let tz = TimeZone(identifier: "Australia/Sydney")!

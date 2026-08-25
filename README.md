@@ -1,4 +1,4 @@
-# Claude Usage Bar
+# LLM Usage Bar
 
 A tiny macOS menu bar app that always shows your Claude subscription usage — plus,
 if you use them, your ChatGPT usage and your remaining OpenRouter credits:
@@ -34,7 +34,7 @@ anything.
 
 The menu bar item — one segment per limit, colored by how close you are:
 
-![Claude Usage Bar in the menu bar](docs/images/menubar.png)
+![LLM Usage Bar in the menu bar](docs/images/menubar.png)
 
 Click it for bars, exact reset times, and settings:
 
@@ -62,9 +62,22 @@ cd llm-usage-tracker
 make install
 ```
 
-`make install` builds a release binary, wraps it in `ClaudeUsageBar.app`, ad-hoc
+`make install` builds a release binary, wraps it in `LLMUsageBar.app`, ad-hoc
 signs it, copies it to `/Applications`, and launches it. Turn on **Launch at
 login** from the click menu if you want it always there.
+
+### Upgrading from Claude Usage Bar
+
+The app was called Claude Usage Bar until it grew past Claude. If you installed
+a build from before the rename, turn off **Launch at login** in the old app's
+click menu before you upgrade — macOS registers login items by bundle id, so
+the old one outlives the rename and keeps trying to start an app that has moved.
+
+Then `make install` as usual. It deletes `/Applications/ClaudeUsageBar.app`
+along with the bundle it replaces, so you do not end up with the same app twice
+in the menu bar. Your refresh interval and provider toggles come across on first
+launch. The menu bar item's position does not, so it may land somewhere else
+along the bar.
 
 ### Install with Claude Code (or any AI coding agent)
 
@@ -73,10 +86,10 @@ app — the full recipe, with verification steps, is in
 [`AGENTS.md`](AGENTS.md). A prompt like this is enough:
 
 > Clone https://github.com/edward-sia/llm-usage-tracker, read AGENTS.md, and
-> follow it to build and install Claude Usage Bar on my Mac.
+> follow it to build and install LLM Usage Bar on my Mac.
 
 Other targets: `make test` (unit tests), `make run` (build and launch from
-`build/`), `make clean`.
+`build/`), `make uninstall` (remove the installed app), `make clean`.
 
 If you download a pre-built zip instead of building, macOS will quarantine it.
 This build is ad-hoc signed, not notarized, so Gatekeeper flags any copy that
@@ -85,7 +98,7 @@ with `make install` is never quarantined in the first place. Remove the flag
 before launching a downloaded copy:
 
 ```bash
-xattr -dr com.apple.quarantine /Applications/ClaudeUsageBar.app
+xattr -dr com.apple.quarantine /Applications/LLMUsageBar.app
 ```
 
 ## How it works
@@ -139,13 +152,13 @@ menu open, wake, manual, start), the outcome, the server's `Retry-After` on a
 429, and how long the request took. To see the last few hours:
 
 ```bash
-log show --last 6h --predicate 'subsystem == "dev.llm-usage-tracker.ClaudeUsageBar"'
+log show --last 6h --predicate 'subsystem == "dev.llm-usage-tracker.LLMUsageBar"'
 ```
 
 or to watch live:
 
 ```bash
-log stream --predicate 'subsystem == "dev.llm-usage-tracker.ClaudeUsageBar"'
+log stream --predicate 'subsystem == "dev.llm-usage-tracker.LLMUsageBar"'
 ```
 
 The `claude` category is the Claude usage poller, `chatgpt` the ChatGPT one, and
@@ -190,8 +203,8 @@ swift build         # debug build
 make run            # build the .app and launch it
 ```
 
-Structure: `Sources/ClaudeUsageBarCore` (models, credential reading, API client,
-formatting, poller — all unit-tested, no AppKit) and `Sources/ClaudeUsageBar`
+Structure: `Sources/LLMUsageBarCore` (models, credential reading, API client,
+formatting, poller — all unit-tested, no AppKit) and `Sources/LLMUsageBar`
 (the menu bar UI). Design notes live in `docs/superpowers/specs/`.
 
 ## Roadmap

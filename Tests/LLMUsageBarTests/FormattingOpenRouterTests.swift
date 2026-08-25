@@ -1,5 +1,5 @@
 import XCTest
-@testable import ClaudeUsageBarCore
+@testable import LLMUsageBarCore
 
 final class FormattingOpenRouterTests: XCTestCase {
     private let now = Date(timeIntervalSince1970: 2_000)

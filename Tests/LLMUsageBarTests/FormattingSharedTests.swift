@@ -1,5 +1,5 @@
 import XCTest
-@testable import ClaudeUsageBarCore
+@testable import LLMUsageBarCore
 
 /// The formatting helpers every provider shares: severity thresholds, time text, and bars.
 /// Per-provider output is covered by FormattingClaudeTests, FormattingChatGPTTests, and

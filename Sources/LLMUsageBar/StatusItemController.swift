@@ -1,5 +1,5 @@
 import AppKit
-import ClaudeUsageBarCore
+import LLMUsageBarCore
 
 /// Owns the NSStatusItem: renders the title/tooltip from FetchState and builds the click menu.
 @MainActor
@@ -27,7 +27,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
         self.preferences = preferences
         super.init()
 
-        statusItem.autosaveName = "ClaudeUsageBar"
+        statusItem.autosaveName = "LLMUsageBar"
         menu.delegate = self
         menu.autoenablesItems = false
         statusItem.menu = menu
@@ -312,7 +312,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
         menu.addItem(intervalItem)
         menu.addItem(.separator())
 
-        let quit = NSMenuItem(title: "Quit Claude Usage Bar", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let quit = NSMenuItem(title: "Quit LLM Usage Bar", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         quit.target = NSApp
         menu.addItem(quit)
     }
@@ -393,7 +393,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
         } catch {
             let alert = NSAlert()
             alert.messageText = "Could not change Launch at login"
-            alert.informativeText = "This only works when the app runs from an installed bundle (run `make install` and start /Applications/ClaudeUsageBar.app).\n\n\(error.localizedDescription)"
+            alert.informativeText = "This only works when the app runs from an installed bundle (run `make install` and start /Applications/LLMUsageBar.app).\n\n\(error.localizedDescription)"
             alert.alertStyle = .warning
             NSApp.activate(ignoringOtherApps: true)
             alert.runModal()
