@@ -146,9 +146,10 @@ and the Claude Code status line, ChatGPT's with the ChatGPT app and `codex` — 
 can appear even when this app polls slowly. After a 429 the app waits out the server's
 `Retry-After` and skips menu-open fetches meanwhile. On wake from sleep each poller
 waits its own random 30–90 s before fetching so it does not join the burst of every
-other client refreshing at once. The `chatgpt` poller additionally never polls faster
-than once every 3 minutes and reuses its numbers for 2 minutes before an opportunistic
-fetch, because its shortest window is five hours. The last good numbers live only in
+other client refreshing at once. The `chatgpt` poller additionally never polls faster than
+once every 3 minutes, because its shortest window is five hours. That floor covers menu-open
+and wake fetches as well, so glancing at the menu cannot pull its rate above one request every
+3 minutes. The last good numbers live only in
 memory: if the app restarts while an account is rate limited, the menu has nothing to
 show for that provider until the first successful fetch.
 

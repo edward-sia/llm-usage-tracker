@@ -184,13 +184,32 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
         isMenuOpen = false
     }
 
-    /// True when some visible provider already has numbers on screen. A provider with no
-    /// credentials stays quiet in that case — "no key found" is noise next to real rows, and the
-    /// explanation only earns a line when the menu would otherwise not explain itself.
+    /// True when some visible provider already has numbers on screen.
     private var anyVisibleSnapshot: Bool {
         (preferences.showClaudeUsage && state.snapshot != nil)
             || (preferences.showChatGPTUsage && chatGPTState.snapshot != nil)
             || (preferences.showOpenRouterCredits && creditsState.snapshot != nil)
+    }
+
+    /// True when the menu already says something for itself: numbers from a visible provider, or
+    /// an error line that appears regardless.
+    ///
+    /// Not having credentials for ChatGPT or OpenRouter is the normal state on most Macs, so that
+    /// line is noise beside anything else worth reading — it earns a place only when the menu
+    /// would otherwise not explain itself. Claude's error line is never gated, so *any* Claude
+    /// error counts here; for the optional providers only a real failure does, since their
+    /// "not signed in" line is the one being gated.
+    private var menuExplainsItself: Bool {
+        anyVisibleSnapshot
+            || (preferences.showClaudeUsage && state.error != nil)
+            || (preferences.showChatGPTUsage && isFailure(chatGPTState.error))
+            || (preferences.showOpenRouterCredits && isFailure(creditsState.error))
+    }
+
+    /// An error other than "no credentials found".
+    private func isFailure(_ error: UsageError?) -> Bool {
+        guard let error else { return false }
+        return error != .notSignedIn
     }
 
     private func rebuildMenu() {
@@ -206,12 +225,12 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
             menu.addItem(.separator())
         }
         if showChatGPT, let chatGPTError = chatGPTState.error,
-           chatGPTError != .notSignedIn || !anyVisibleSnapshot {
+           chatGPTError != .notSignedIn || !menuExplainsItself {
             addDisabled(Formatting.chatGPTErrorMessage(chatGPTError, last: chatGPTState.snapshot, now: now))
             menu.addItem(.separator())
         }
         if showOpenRouter, let creditsError = creditsState.error,
-           creditsError != .notSignedIn || !anyVisibleSnapshot {
+           creditsError != .notSignedIn || !menuExplainsItself {
             addDisabled(Formatting.openRouterErrorMessage(creditsError, last: creditsState.snapshot, now: now))
             menu.addItem(.separator())
         }

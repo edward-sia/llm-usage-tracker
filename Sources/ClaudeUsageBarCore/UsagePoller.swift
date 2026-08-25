@@ -54,7 +54,9 @@ public final class UsagePoller<Snapshot: TimestampedSnapshot, Credential: Sendab
     /// drag them into rate-limit territory.
     public let minimumInterval: TimeInterval
 
-    /// Default age at which `refreshIfStale` considers the numbers worth refetching.
+    /// Default age at which `refreshIfStale` considers the numbers worth refetching. Raised to
+    /// `minimumInterval` when that is higher: fetching sooner than the floor would beat it, since
+    /// every fetch reschedules the timer from the moment it completes.
     public let opportunisticStaleAfter: TimeInterval
 
     /// What the next timer wait will be: the backoff after a 429, otherwise the chosen interval —
@@ -104,16 +106,19 @@ public final class UsagePoller<Snapshot: TimestampedSnapshot, Credential: Sendab
     /// An opportunistic refresh — triggered by the user glancing at the menu or by wake from
     /// sleep, not by the timer. It protects the shared, rate-limited usage endpoint:
     /// it does nothing while a 429 backoff is in effect, and nothing if the last good numbers
-    /// are younger than `staleAfter` (which defaults to this poller's `opportunisticStaleAfter`).
-    /// Reopening the menu rapidly therefore reuses the numbers it just fetched instead of firing
-    /// a request each time. The timer and the manual Refresh button still call `refresh()`
-    /// directly, so periodic polling and explicit refreshes are never suppressed.
+    /// are younger than `staleAfter` (which defaults to this poller's `opportunisticStaleAfter`,
+    /// and never drops below `minimumInterval`). Reopening the menu rapidly therefore reuses the
+    /// numbers it just fetched instead of firing a request each time. The timer and the manual
+    /// Refresh button still call `refresh()` directly, so periodic polling and explicit refreshes
+    /// are never suppressed.
     public func refreshIfStale(trigger: FetchTrigger = .menuOpen, olderThan staleAfter: TimeInterval? = nil, now: Date = Date()) async {
         if backoff != nil {
             logger.log("skip(\(trigger.rawValue, privacy: .public)): backing off after 429")
             return
         }
-        let threshold = staleAfter ?? opportunisticStaleAfter
+        // Clamped to the floor: a fetch here restarts the timer from now, so allowing one sooner
+        // than `minimumInterval` would raise this provider's real request rate above its floor.
+        let threshold = max(staleAfter ?? opportunisticStaleAfter, minimumInterval)
         if let fetchedAt = state.snapshot?.fetchedAt, now.timeIntervalSince(fetchedAt) < threshold {
             logger.debug("skip(\(trigger.rawValue, privacy: .public)): numbers are fresh")
             return

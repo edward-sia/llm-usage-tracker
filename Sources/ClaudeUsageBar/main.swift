@@ -13,10 +13,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// ChatGPT's shortest rate-limit window is five hours, and the endpoint is shared with the
     /// ChatGPT app and `codex` on the same account. Polling it on the same 60–90 s cadence as the
     /// other two would spend requests on numbers that cannot have moved, so this provider keeps
-    /// its own floor whatever interval the user picks, and reuses fetched numbers for longer
-    /// before an opportunistic menu-open or wake refresh bothers the endpoint again.
+    /// its own floor whatever interval the user picks. The floor governs opportunistic fetches
+    /// too — a menu-open or wake refresh reuses numbers younger than this rather than restarting
+    /// the timer early — so there is no separate staleness window to set here.
     private static let chatGPTMinimumInterval: TimeInterval = 180
-    private static let chatGPTStaleAfter: TimeInterval = 120
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let credentials = CredentialStore()
@@ -43,7 +43,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             interval: preferences.refreshInterval,
             name: "chatgpt",
             minimumInterval: Self.chatGPTMinimumInterval,
-            opportunisticStaleAfter: Self.chatGPTStaleAfter,
             credentialProvider: { try chatGPTAuth.credentials() },
             fetcher: { credentials in try await chatGPTClient.fetchUsage(credentials: credentials) }
         )

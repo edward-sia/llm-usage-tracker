@@ -127,9 +127,10 @@ and skips the menu-open fetch while numbers are still fresh.
 ChatGPT's usage endpoint is shared and rate limited the same way Anthropic's is — the
 ChatGPT app and `codex` read it too. Its shortest window is five hours, so a percentage
 cannot move much minute to minute, and this app never polls it faster than once every
-3 minutes however low you set the refresh interval. It also reuses ChatGPT numbers for
-2 minutes before an opportunistic refresh (opening the menu, waking from sleep) will
-fetch again, where the other two providers reuse theirs for 20 seconds.
+3 minutes however low you set the refresh interval. That floor covers opportunistic refreshes
+too — opening the menu or waking from sleep reuses ChatGPT numbers younger than 3 minutes
+rather than fetching and restarting the timer early, where the other two providers reuse
+theirs for 20 seconds.
 
 ### Logs
 
@@ -171,7 +172,7 @@ refresh-interval and per-provider visibility preferences.
 |---|---|---|
 | `⚠︎ not signed in` | No Claude Code credentials found | Run `claude` in a terminal and log in |
 | numbers followed by `⚠︎` | Last refresh failed; numbers are stale | Hover or click for the reason (offline, token expired, rate limited, API error) |
-| `…` | First fetch has not finished | Wait a second; hover shows "Loading Claude usage…" |
+| `…` | First fetch has not finished | Wait a second; hover shows "Loading usage…" |
 | no ChatGPT segment | No ChatGPT login found in `~/.codex/auth.json` (or the provider is toggled off in the click menu) | Run `codex` and choose Sign in with ChatGPT, or sign in to the ChatGPT desktop app |
 | OpenAI logo + `⚠︎` | The ChatGPT usage fetch failed | Hover or click for the reason |
 | no OpenRouter segment | No `OPENROUTER_API_KEY` found in shell config (or the provider is toggled off in the click menu) | Add `export OPENROUTER_API_KEY=…` to `~/.zshrc` (or another file the app reads — see How it works) |

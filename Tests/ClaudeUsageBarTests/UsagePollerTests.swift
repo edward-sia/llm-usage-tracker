@@ -279,6 +279,34 @@ final class UsagePollerTests: XCTestCase {
         XCTAssertEqual(fetcher.tokens.count, 2, "130s >= 120s: must fetch")
     }
 
+    /// Regression: the floor has to bind the opportunistic path too. Every fetch reschedules the
+    /// timer from the moment it lands, so a menu-open allowed through at 120s on a 180s floor
+    /// raises the real request rate to 30/hour instead of 20 — exactly what the floor exists to
+    /// prevent, and what the README and AGENTS text promise cannot happen.
+    func testOpportunisticFetchCannotBeatTheFloor() async {
+        // ChatGPT's shipped configuration.
+        let fetcher = ScriptedFetcher([.success(snapshot(1)), .success(snapshot(2))])
+        let poller = UsagePoller(interval: 60, minimumInterval: 180,
+                                 credentialProvider: { "tok" }, fetcher: fetcher.fetch)
+        await poller.refresh()                                       // fetchedAt = epoch
+        await poller.refreshIfStale(now: epoch.addingTimeInterval(120))
+        XCTAssertEqual(fetcher.tokens.count, 1, "120s < the 180s floor: must reuse the numbers")
+        await poller.refreshIfStale(now: epoch.addingTimeInterval(179))
+        XCTAssertEqual(fetcher.tokens.count, 1, "still inside the floor")
+        await poller.refreshIfStale(now: epoch.addingTimeInterval(180))
+        XCTAssertEqual(fetcher.tokens.count, 2, "at the floor: fetching is allowed again")
+    }
+
+    /// An explicit, shorter `olderThan` must not smuggle a fetch past the floor either.
+    func testExplicitStalenessCannotBeatTheFloor() async {
+        let fetcher = ScriptedFetcher([.success(snapshot(1)), .success(snapshot(2))])
+        let poller = UsagePoller(interval: 60, minimumInterval: 180,
+                                 credentialProvider: { "tok" }, fetcher: fetcher.fetch)
+        await poller.refresh()
+        await poller.refreshIfStale(olderThan: 5, now: epoch.addingTimeInterval(30))
+        XCTAssertEqual(fetcher.tokens.count, 1, "the floor outranks a shorter explicit window")
+    }
+
     func testExplicitStalenessStillOverridesTheDefault() async {
         let fetcher = ScriptedFetcher([.success(snapshot(25)), .success(snapshot(99))])
         let poller = UsagePoller(interval: 60, opportunisticStaleAfter: 120,
