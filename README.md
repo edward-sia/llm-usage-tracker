@@ -1,7 +1,8 @@
 # LLM Usage Bar
 
-A tiny macOS menu bar app that always shows your Claude subscription usage — plus,
-if you use them, your ChatGPT usage and your remaining OpenRouter credits:
+A tiny macOS menu bar app that keeps your LLM subscription usage and credit
+balances in front of you. It reads Claude, ChatGPT, and OpenRouter today, and
+shows whichever of them you actually use:
 
 ```
 5h 25% · W 26% · F 17%   5h 42% · W 8%   $12.34
@@ -9,7 +10,9 @@ if you use them, your ChatGPT usage and your remaining OpenRouter credits:
 
 Each group sits behind its provider's logo — the Claude mark in front of the
 Claude numbers, OpenAI's in front of the ChatGPT numbers, OpenRouter's in front of
-the balance (see the screenshot below).
+the balance (see the screenshot below). A provider you have no login for simply
+does not appear; none of the three is required, and any one of them on its own
+is a perfectly normal setup.
 
 - **5h** — the rolling 5-hour session limit
 - **W** — the weekly limit across all models
@@ -26,9 +29,9 @@ exact reset times, a refresh button, links to each usage page, and settings.
 Any provider can be hidden from the click menu; a hidden provider drops out
 of the menu bar and is not polled at all until you show it again.
 
-It shows the same numbers as the claude.ai usage page, the Claude Code status line,
-and `codex`'s own status display, without keeping a browser tab open or clicking
-anything.
+The numbers match what each provider shows you itself — the claude.ai usage page
+and the Claude Code status line, `codex`'s own status display, the OpenRouter
+credits page — without keeping three browser tabs open or clicking anything.
 
 ## Screenshots
 
@@ -46,13 +49,21 @@ from a helper binary rather than the installed `.app`.)*
 ## Requirements
 
 - macOS 14 or newer
-- [Claude Code](https://claude.com/claude-code) installed and signed in (`claude` → log in). The app reuses that login.
-- Optional: [Codex](https://developers.openai.com/codex/) signed in with your ChatGPT
-  account, or the ChatGPT desktop app, which keeps the same login. Without one the
-  ChatGPT group simply does not appear.
-- Optional: an OpenRouter API key exported as `OPENROUTER_API_KEY` in your shell
-  config. Without one the OpenRouter group simply does not appear.
 - To build from source: Xcode Command Line Tools (`xcode-select --install`)
+- At least one of the three providers below. Every one of them is optional on its
+  own, and a provider you have no login for just does not appear in the menu bar.
+
+The app never asks you for a credential. Each provider reuses a login some other
+tool already made:
+
+| Provider | What it reads | How to get it |
+|---|---|---|
+| Claude | The OAuth token [Claude Code](https://claude.com/claude-code) keeps in the Keychain | Run `claude` and log in |
+| ChatGPT | The token [Codex](https://developers.openai.com/codex/) writes to `~/.codex/auth.json` | Run `codex` → Sign in with ChatGPT, or sign in to the ChatGPT desktop app |
+| OpenRouter | `OPENROUTER_API_KEY` from your shell config | `export OPENROUTER_API_KEY=…` in `~/.zshrc` |
+
+With none of the three set up, the menu bar shows `⚠︎ not signed in` and the
+click menu tells you how to set up each one.
 
 ## Install from source
 
@@ -183,14 +194,18 @@ refresh-interval and per-provider visibility preferences.
 
 | Menu bar shows | Meaning | Fix |
 |---|---|---|
-| `⚠︎ not signed in` | No Claude Code credentials found | Run `claude` in a terminal and log in |
+| `⚠︎ not signed in` | No provider has a credential to read | Set up at least one — see Requirements. Click the item for the specific step per provider |
 | numbers followed by `⚠︎` | Last refresh failed; numbers are stale | Hover or click for the reason (offline, token expired, rate limited, API error) |
-| `…` | First fetch has not finished | Wait a second; hover shows "Loading usage…" |
+| `…` | A first fetch has not finished | Wait a second; hover shows "Loading usage…" |
+| no Claude segment | No Claude Code login found (or the provider is toggled off in the click menu) | Run `claude` in a terminal and log in |
 | no ChatGPT segment | No ChatGPT login found in `~/.codex/auth.json` (or the provider is toggled off in the click menu) | Run `codex` and choose Sign in with ChatGPT, or sign in to the ChatGPT desktop app |
-| OpenAI logo + `⚠︎` | The ChatGPT usage fetch failed | Hover or click for the reason |
 | no OpenRouter segment | No `OPENROUTER_API_KEY` found in shell config (or the provider is toggled off in the click menu) | Add `export OPENROUTER_API_KEY=…` to `~/.zshrc` (or another file the app reads — see How it works) |
-| OpenRouter logo + `⚠︎` | The OpenRouter credits fetch failed | Hover or click for the reason |
+| a provider's logo + `⚠︎` | That provider's fetch failed | Hover or click for the reason |
 | only a gauge glyph | Every provider is toggled off | Click it and turn a provider back on |
+
+A provider with no login drops out of the menu bar rather than showing a warning
+you cannot act on, so a menu bar with two groups in it is not a sign anything is
+broken. `⚠︎ not signed in` appears only when *no* provider has a credential.
 
 "Launch at login" only works when the app runs from `/Applications` (i.e. after
 `make install`), because macOS registers login items by bundle.
