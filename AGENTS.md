@@ -161,30 +161,13 @@ git pull
 make install
 ```
 
-The app used to be called **Claude Usage Bar** and installed as
-`ClaudeUsageBar.app`. If the user is upgrading from a build older than the
-rename, tell them two things before you run `make install`:
-
-- Turn off **Launch at login** from the old app's click menu first. macOS
-  registers login items by bundle id, so an item pointing at the old bundle
-  survives the rename and keeps trying to start an app that is no longer there.
-- `make install` deletes `/Applications/ClaudeUsageBar.app` along with the new
-  bundle it replaces. That is deliberate — leaving it would put two copies of
-  the same app in the menu bar — but it is a deletion, so say it out loud
-  rather than letting them discover it.
-
-Their refresh interval and per-provider toggles carry over on first launch: the
-app copies them from the old bundle id's preferences once. The menu bar item's
-position is not carried over, so it may appear somewhere else along the bar.
-
 ## Uninstalling
 
 ```bash
 make uninstall
 ```
 
-That kills the running app and removes `/Applications/LLMUsageBar.app`, plus
-`/Applications/ClaudeUsageBar.app` if a pre-rename copy is still there.
+That kills the running app and removes `/Applications/LLMUsageBar.app`.
 
 Also turn off Launch at login from the menu first if it was enabled. Removing
 the app does not touch any of the credentials it read — the Claude Code Keychain item,

@@ -66,19 +66,6 @@ make install
 signs it, copies it to `/Applications`, and launches it. Turn on **Launch at
 login** from the click menu if you want it always there.
 
-### Upgrading from Claude Usage Bar
-
-The app was called Claude Usage Bar until it grew past Claude. If you installed
-a build from before the rename, turn off **Launch at login** in the old app's
-click menu before you upgrade — macOS registers login items by bundle id, so
-the old one outlives the rename and keeps trying to start an app that has moved.
-
-Then `make install` as usual. It deletes `/Applications/ClaudeUsageBar.app`
-along with the bundle it replaces, so you do not end up with the same app twice
-in the menu bar. Your refresh interval and provider toggles come across on first
-launch. The menu bar item's position does not, so it may land somewhere else
-along the bar.
-
 ### Install with Claude Code (or any AI coding agent)
 
 If you use an AI coding agent, point it at this repo and ask it to install the
