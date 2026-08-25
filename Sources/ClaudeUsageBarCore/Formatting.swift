@@ -130,7 +130,7 @@ extension Formatting {
 
     /// The rate-limited menu line. Shows the wait the poller will actually take; when the
     /// server sent a `Retry-After`, that drove the wait and the message says so.
-    private static func rateLimitedMessage(prefix: String, retryAfter: TimeInterval?) -> String {
+    static func rateLimitedMessage(prefix: String, retryAfter: TimeInterval?) -> String {
         guard let retryAfter else { return "\(prefix) Next refresh in \(rateLimitBackoffDescription)." }
         let wait = durationText(seconds: RateLimitPolicy.backoff(retryAfter: retryAfter))
         return "\(prefix) Next refresh in \(wait) (server's Retry-After)."
@@ -290,7 +290,17 @@ extension Formatting {
         }
     }
 
-    public static func tooltip(for state: FetchState<UsageSnapshot>, credits: FetchState<CreditsSnapshot> = .idle, now: Date, timeZone: TimeZone = .current, locale: Locale = .current) -> String {
+    /// The whole tooltip, in menu bar order: Claude, then ChatGPT, then OpenRouter.
+    ///
+    /// A provider the user has hidden is passed as `.idle` and contributes nothing, which is the
+    /// same thing `.idle` means while a provider is still on its first fetch. The caller decides
+    /// what to say when every provider is hidden — from in here the two are indistinguishable.
+    public static func tooltip(for state: FetchState<UsageSnapshot>,
+                               credits: FetchState<CreditsSnapshot> = .idle,
+                               chatGPT: FetchState<ChatGPTUsageSnapshot> = .idle,
+                               now: Date,
+                               timeZone: TimeZone = .current,
+                               locale: Locale = .current) -> String {
         var lines: [String] = []
         if let error = state.error {
             lines.append(errorMessage(error, last: state.snapshot, now: now))
@@ -304,11 +314,27 @@ extension Formatting {
                 lines.append(line)
             }
         }
+        lines.append(contentsOf: chatGPTTooltipLines(for: chatGPT, now: now, timeZone: timeZone, locale: locale))
         lines.append(contentsOf: openRouterTooltipLines(for: credits, now: now))
-        if let snapshot = state.snapshot {
-            lines.append("Updated \(agoText(since: snapshot.fetchedAt, now: now))")
+
+        // A provider with no credentials stays quiet while anything else has something to say.
+        // When it would leave the tooltip blank, say which provider is not signed in instead of
+        // claiming to still be loading.
+        if lines.isEmpty {
+            if case .failed(.notSignedIn, let last) = chatGPT, last == nil {
+                lines.append(chatGPTErrorMessage(.notSignedIn, last: nil, now: now))
+            }
+            if case .failed(.notSignedIn, let last) = credits, last == nil {
+                lines.append(openRouterErrorMessage(.notSignedIn, last: nil, now: now))
+            }
         }
-        if lines.isEmpty { lines.append("Loading Claude usage…") }
+
+        // One age for the whole tooltip, taken from the first provider that has numbers — the
+        // same fallback order the click menu uses for its "Updated" line.
+        if let updatedAt = state.snapshot?.fetchedAt ?? chatGPT.snapshot?.fetchedAt ?? credits.snapshot?.fetchedAt {
+            lines.append("Updated \(agoText(since: updatedAt, now: now))")
+        }
+        if lines.isEmpty { lines.append("Loading usage…") }
         return lines.joined(separator: "\n")
     }
 }

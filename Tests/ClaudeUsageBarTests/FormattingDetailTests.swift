@@ -121,7 +121,9 @@ final class FormattingDetailTests: XCTestCase {
     }
 
     func testTooltipIdleAndFailedWithoutSnapshot() {
-        XCTAssertEqual(Formatting.tooltip(for: .idle, now: now, timeZone: tz, locale: locale), "Loading Claude usage…")
+        // Not "Loading Claude usage…": with three providers the tooltip cannot say whose numbers
+        // are still on the way.
+        XCTAssertEqual(Formatting.tooltip(for: .idle, now: now, timeZone: tz, locale: locale), "Loading usage…")
         XCTAssertEqual(Formatting.tooltip(for: .failed(.notSignedIn, last: nil), now: now, timeZone: tz, locale: locale),
                        "Not signed in to Claude Code. Run `claude` in a terminal and log in.")
     }

@@ -1,28 +1,34 @@
 # Claude Usage Bar
 
-A tiny macOS menu bar app that always shows your Claude subscription usage — and,
-if you use OpenRouter, your remaining credits:
+A tiny macOS menu bar app that always shows your Claude subscription usage — plus,
+if you use them, your ChatGPT usage and your remaining OpenRouter credits:
 
 ```
-5h 25% · W 26% · F 17%   $12.34
+5h 25% · W 26% · F 17%   5h 42% · W 8%   $12.34
 ```
 
 Each group sits behind its provider's logo — the Claude mark in front of the
-Claude numbers, OpenRouter's in front of the balance (see the screenshot below).
+Claude numbers, OpenAI's in front of the ChatGPT numbers, OpenRouter's in front of
+the balance (see the screenshot below).
 
 - **5h** — the rolling 5-hour session limit
 - **W** — the weekly limit across all models
 - **F** (or another letter) — a weekly limit scoped to one model, e.g. Fable
+- **5h**, **W**, **M** behind the OpenAI mark — ChatGPT's own usage windows. The label
+  is how long the window lasts, so it follows whatever your plan reports: a paid plan
+  shows a rolling 5-hour window and a weekly one, a free account shows a single
+  30-day window (`M`).
 - **$…** — your OpenRouter credit balance (only shown when a key is found)
 
-Claude numbers turn amber at 50 % and red at 80 %; the OpenRouter balance turns
+Percentages turn amber at 50 % and red at 80 %; the OpenRouter balance turns
 amber below $5 and red below $1. Hover for reset countdowns. Click for bars,
-exact reset times, a refresh button, links to both usage pages, and settings.
-Either provider can be hidden from the click menu; a hidden provider drops out
+exact reset times, a refresh button, links to each usage page, and settings.
+Any provider can be hidden from the click menu; a hidden provider drops out
 of the menu bar and is not polled at all until you show it again.
 
-It shows the same numbers as the claude.ai usage page and the Claude Code status
-line, without keeping a browser tab open or clicking anything.
+It shows the same numbers as the claude.ai usage page, the Claude Code status line,
+and `codex`'s own status display, without keeping a browser tab open or clicking
+anything.
 
 ## Screenshots
 
@@ -34,14 +40,18 @@ Click it for bars, exact reset times, and settings:
 
 ![The dropdown menu](docs/images/menu.png)
 
-*(Rendered from the app's own fonts, colors, and output.)*
+*(Screenshots of the running app. "Launch at login" reads unchecked because the shots come
+from a helper binary rather than the installed `.app`.)*
 
 ## Requirements
 
 - macOS 14 or newer
 - [Claude Code](https://claude.com/claude-code) installed and signed in (`claude` → log in). The app reuses that login.
+- Optional: [Codex](https://developers.openai.com/codex/) signed in with your ChatGPT
+  account, or the ChatGPT desktop app, which keeps the same login. Without one the
+  ChatGPT group simply does not appear.
 - Optional: an OpenRouter API key exported as `OPENROUTER_API_KEY` in your shell
-  config. Without one the app simply shows Claude usage only.
+  config. Without one the OpenRouter group simply does not appear.
 - To build from source: Xcode Command Line Tools (`xcode-select --install`)
 
 ## Install from source
@@ -88,14 +98,21 @@ xattr -dr com.apple.quarantine /Applications/ClaudeUsageBar.app
    Refresh, and once when you open the menu (only if the numbers are more than
    ~20 seconds old).
 3. Renders the `limits` from the response in the menu bar.
-4. For OpenRouter, reads `OPENROUTER_API_KEY` from your shell config files
+4. For ChatGPT, reads the access token Codex stores in `~/.codex/auth.json` after a
+   "Sign in with ChatGPT" login (`$CODEX_HOME` is honored if you set it) and calls
+   `GET https://chatgpt.com/backend-api/wham/usage` — the endpoint `codex` itself
+   reads for its status display. The response describes each limit by how long its
+   window lasts, which is where the `5h` / `W` / `M` labels come from. A Codex signed
+   in with an API key instead of a ChatGPT account has no subscription to report, so
+   no segment appears.
+5. For OpenRouter, reads `OPENROUTER_API_KEY` from your shell config files
    (`~/.zshrc`, `~/.zshenv`, `~/.zprofile`, `~/.bashrc`, `~/.bash_profile`,
    `~/.profile` — first file with a usable line wins) and calls
    `GET https://openrouter.ai/api/v1/credits` on the same schedule. The menu bar
    shows credits purchased minus credits used. No key found means no segment —
    nothing else changes.
 
-That usage endpoint is shared and rate-limited — it also backs the claude.ai
+Anthropic's usage endpoint is shared and rate-limited — it also backs the claude.ai
 usage page and the Claude Code status line. If too many requests go out on your
 account at once (this app, the Claude Code status line, and other tools all use
 the same token), it returns HTTP 429. The response usually names a wait in its
@@ -106,6 +123,14 @@ is over. Wake from sleep is the moment every client on the machine refreshes at
 once, so after wake the app deliberately waits a random 30–90 seconds before its
 own fetch instead of joining that burst. It also never polls faster than 60 s
 and skips the menu-open fetch while numbers are still fresh.
+
+ChatGPT's usage endpoint is shared and rate limited the same way Anthropic's is — the
+ChatGPT app and `codex` read it too. Its shortest window is five hours, so a percentage
+cannot move much minute to minute, and this app never polls it faster than once every
+3 minutes however low you set the refresh interval. That floor covers opportunistic refreshes
+too — opening the menu or waking from sleep reuses ChatGPT numbers younger than 3 minutes
+rather than fetching and restarting the timer early, where the other two providers reuse
+theirs for 20 seconds.
 
 ### Logs
 
@@ -123,21 +148,23 @@ or to watch live:
 log stream --predicate 'subsystem == "dev.llm-usage-tracker.ClaudeUsageBar"'
 ```
 
-The `claude` category is the usage poller, `openrouter` the credits poller.
-Nothing sensitive is logged — no tokens, no usage numbers.
+The `claude` category is the Claude usage poller, `chatgpt` the ChatGPT one, and
+`openrouter` the credits poller. Nothing sensitive is logged — no tokens, no usage
+numbers.
 
-The app is read-only: it never writes to the Keychain and never refreshes the
-token itself (Claude Code does that). If the token expires, the app shows a
-warning and picks up the new token on the next refresh after you use Claude
-Code again.
+The app is read-only: it never writes to the Keychain or to `~/.codex/auth.json`, and
+never refreshes a token itself (Claude Code and Codex do that). If a token expires, the
+app shows a warning and picks up the new one on the next refresh after you use that
+tool again.
 
 ## Privacy
 
-Nothing leaves your Mac except the request to Anthropic's usage endpoint,
-authenticated with your existing Claude Code token, and — only when you have an
-OpenRouter key — the request to OpenRouter's credits endpoint, authenticated
-with that key. There is no telemetry, no third-party server, and no storage
-beyond the refresh-interval preference.
+Nothing leaves your Mac except three requests, each authenticated with a credential
+that tool already stored on your Mac: Anthropic's usage endpoint with your Claude Code
+token; ChatGPT's usage endpoint with the token Codex saved, and only when you have one;
+and OpenRouter's credits endpoint with your OpenRouter key, and only when you have one.
+There is no telemetry, no third-party server, and no storage beyond the
+refresh-interval and per-provider visibility preferences.
 
 ## Troubleshooting
 
@@ -145,10 +172,12 @@ beyond the refresh-interval preference.
 |---|---|---|
 | `⚠︎ not signed in` | No Claude Code credentials found | Run `claude` in a terminal and log in |
 | numbers followed by `⚠︎` | Last refresh failed; numbers are stale | Hover or click for the reason (offline, token expired, rate limited, API error) |
-| `…` | First fetch has not finished | Wait a second; hover shows "Loading Claude usage…" |
+| `…` | First fetch has not finished | Wait a second; hover shows "Loading usage…" |
+| no ChatGPT segment | No ChatGPT login found in `~/.codex/auth.json` (or the provider is toggled off in the click menu) | Run `codex` and choose Sign in with ChatGPT, or sign in to the ChatGPT desktop app |
+| OpenAI logo + `⚠︎` | The ChatGPT usage fetch failed | Hover or click for the reason |
 | no OpenRouter segment | No `OPENROUTER_API_KEY` found in shell config (or the provider is toggled off in the click menu) | Add `export OPENROUTER_API_KEY=…` to `~/.zshrc` (or another file the app reads — see How it works) |
 | OpenRouter logo + `⚠︎` | The OpenRouter credits fetch failed | Hover or click for the reason |
-| only a gauge glyph | Both providers are toggled off | Click it and turn a provider back on |
+| only a gauge glyph | Every provider is toggled off | Click it and turn a provider back on |
 
 "Launch at login" only works when the app runs from `/Applications` (i.e. after
 `make install`), because macOS registers login items by bundle.
