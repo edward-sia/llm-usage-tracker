@@ -70,6 +70,28 @@ final class FormattingSharedTests: XCTestCase {
         XCTAssertEqual(Formatting.bar(percent: 50, width: 4), "▓▓░░")
     }
 
+    // MARK: Empty title
+
+    func testEmptyTitleWithNoVisibleProvidersIsAllHidden() {
+        XCTAssertEqual(Formatting.emptyTitle(loadingByVisibleProvider: []), .allHidden)
+    }
+
+    func testEmptyTitleWhileAnyVisibleProviderIsStillFetching() {
+        XCTAssertEqual(Formatting.emptyTitle(loadingByVisibleProvider: [true]), .loading)
+        XCTAssertEqual(Formatting.emptyTitle(loadingByVisibleProvider: [true, true, true]), .loading)
+    }
+
+    func testEmptyTitleIsNothingSignedInOnlyWhenNothingIsStillFetching() {
+        XCTAssertEqual(Formatting.emptyTitle(loadingByVisibleProvider: [false]), .nothingSignedIn)
+        XCTAssertEqual(Formatting.emptyTitle(loadingByVisibleProvider: [false, false, false]), .nothingSignedIn)
+    }
+
+    func testLoadingWinsOverNothingSignedIn() {
+        // Claude has no login but ChatGPT's first fetch is still out. Saying "not signed in"
+        // here would be wrong twice: now, and again when ChatGPT's numbers land a moment later.
+        XCTAssertEqual(Formatting.emptyTitle(loadingByVisibleProvider: [false, true]), .loading)
+    }
+
     func testDurationText() {
         XCTAssertEqual(Formatting.durationText(seconds: 45), "45 s")
         XCTAssertEqual(Formatting.durationText(seconds: 300), "5 min")

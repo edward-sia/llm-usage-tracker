@@ -61,20 +61,24 @@ extension Formatting {
 
     // MARK: Title
 
+    /// Menu bar segments for the Claude state. Empty while loading and when Claude Code has no
+    /// login, so a Mac that only uses the other providers never sees a Claude segment — the same
+    /// contract `chatGPTTitleSegments` and `openRouterTitleSegments` follow.
+    ///
+    /// An empty title across every provider is the app's problem to explain, not this function's:
+    /// the caller knows whether that means loading, nothing signed in, or everything hidden.
     public static func claudeTitleSegments(for state: FetchState<ClaudeUsageSnapshot>) -> [TitleSegment] {
         switch state {
         case .idle:
-            return [TitleSegment(text: "…", severity: .normal)]
+            return []
         case .loaded(let snapshot):
             return claudeSegments(for: snapshot)
         case .failed(let error, let last):
             if let last {
                 return claudeSegments(for: last) + [TitleSegment(text: warningGlyph, severity: .warning)]
             }
-            switch error {
-            case .notSignedIn: return [TitleSegment(text: "\(warningGlyph) not signed in", severity: .warning)]
-            default: return [TitleSegment(text: warningGlyph, severity: .warning)]
-            }
+            if error == .notSignedIn { return [] }
+            return [TitleSegment(text: warningGlyph, severity: .warning)]
         }
     }
 
@@ -102,20 +106,21 @@ extension Formatting {
         let suffix = last.map { " Last updated \(agoText(since: $0.fetchedAt, now: now))." } ?? ""
         switch error {
         case .notSignedIn: return "Not signed in to Claude Code. Run `claude` in a terminal and log in."
-        case .unauthorized: return "Token expired. Open Claude Code to refresh it."
-        case .rateLimited(let retryAfter): return rateLimitedMessage(prefix: "Rate limited.", retryAfter: retryAfter)
-        case .http(let code): return "Usage API error (HTTP \(code)).\(suffix)"
-        case .decoding: return "Unexpected response from the usage API.\(suffix)"
-        case .offline: return "Offline.\(suffix)"
+        case .unauthorized: return "Claude token expired. Open Claude Code to refresh it."
+        case .rateLimited(let retryAfter): return rateLimitedMessage(prefix: "Claude rate limited.", retryAfter: retryAfter)
+        case .http(let code): return "Claude usage API error (HTTP \(code)).\(suffix)"
+        case .decoding: return "Unexpected response from the Claude usage API.\(suffix)"
+        case .offline: return "Claude unreachable.\(suffix)"
         }
     }
 
     /// The Claude section of the tooltip: the error line, when there is one, then one line per
-    /// limit. Unlike the other two providers, the "not signed in" line is never held back —
-    /// Claude Code is the one credential the app treats as expected to be there.
+    /// limit. A missing Claude Code login stays quiet while another provider has something to
+    /// say, the same way ChatGPT's and OpenRouter's do — `tooltip` brings it back when it would
+    /// otherwise leave the tooltip blank.
     public static func claudeTooltipLines(for state: FetchState<ClaudeUsageSnapshot>, now: Date, timeZone: TimeZone = .current, locale: Locale = .current) -> [String] {
         var lines: [String] = []
-        if let error = state.error {
+        if let error = state.error, !(error == .notSignedIn && state.snapshot == nil) {
             lines.append(claudeErrorMessage(error, last: state.snapshot, now: now))
         }
         if let snapshot = state.snapshot {

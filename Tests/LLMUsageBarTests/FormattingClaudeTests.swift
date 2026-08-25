@@ -62,8 +62,10 @@ final class FormattingClaudeTests: XCTestCase {
         XCTAssertEqual(Formatting.joinedTitle(segments), "5h 25% · W 55% · F 90%")
     }
 
-    func testTitleForIdleIsEllipsis() {
-        XCTAssertEqual(Formatting.joinedTitle(Formatting.claudeTitleSegments(for: .idle)), "…")
+    func testTitleIsEmptyWhileLoading() {
+        // Not "…". The app decides what an empty title across every provider means; Claude
+        // saying it alone put a loading indicator in the menu bar for one provider out of three.
+        XCTAssertEqual(Formatting.claudeTitleSegments(for: .idle), [])
     }
 
     func testTitleForFailureKeepsLastNumbersAndAppendsWarning() {
@@ -72,10 +74,29 @@ final class FormattingClaudeTests: XCTestCase {
         XCTAssertEqual(segments.last, TitleSegment(text: "⚠︎", severity: .warning))
     }
 
-    func testTitleForFailureWithoutNumbers() {
-        XCTAssertEqual(Formatting.joinedTitle(Formatting.claudeTitleSegments(for: .failed(.notSignedIn, last: nil))), "⚠︎ not signed in")
+    func testTitleIsEmptyWhenClaudeCodeHasNoLogin() {
+        // The contract every provider follows: no credential means no segment, so a Mac that
+        // only uses ChatGPT and OpenRouter never sees a Claude warning it cannot act on.
+        XCTAssertEqual(Formatting.claudeTitleSegments(for: .failed(.notSignedIn, last: nil)), [])
+    }
+
+    func testTitleForOtherFailuresWithoutNumbersIsTheWarningGlyph() {
+        // A real failure still shows: unlike a missing login, it says something went wrong.
         XCTAssertEqual(Formatting.joinedTitle(Formatting.claudeTitleSegments(for: .failed(.offline, last: nil))), "⚠︎")
         XCTAssertEqual(Formatting.joinedTitle(Formatting.claudeTitleSegments(for: .failed(.unauthorized, last: nil))), "⚠︎")
+    }
+
+    func testTitleSegmentsMatchTheContractTheOtherProvidersFollow() {
+        // The parity this file exists to pin down. If a future change makes Claude special
+        // again, this is the test that should fail.
+        for state: FetchState<ClaudeUsageSnapshot> in [.idle, .failed(.notSignedIn, last: nil)] {
+            XCTAssertEqual(Formatting.claudeTitleSegments(for: state), [],
+                           "Claude should contribute nothing for \(state)")
+            XCTAssertEqual(Formatting.chatGPTTitleSegments(for: .idle), [])
+            XCTAssertEqual(Formatting.openRouterTitleSegments(for: .idle), [])
+        }
+        XCTAssertEqual(Formatting.chatGPTTitleSegments(for: .failed(.notSignedIn, last: nil)), [])
+        XCTAssertEqual(Formatting.openRouterTitleSegments(for: .failed(.notSignedIn, last: nil)), [])
     }
 
     func testMenuRowsAndLines() {
@@ -98,18 +119,28 @@ final class FormattingClaudeTests: XCTestCase {
     func testErrorMessages() {
         let last = ClaudeUsageSnapshot(buckets: [], fetchedAt: now.addingTimeInterval(-180))
         XCTAssertEqual(Formatting.claudeErrorMessage(.notSignedIn, last: nil, now: now), "Not signed in to Claude Code. Run `claude` in a terminal and log in.")
-        XCTAssertEqual(Formatting.claudeErrorMessage(.unauthorized, last: last, now: now), "Token expired. Open Claude Code to refresh it.")
-        XCTAssertEqual(Formatting.claudeErrorMessage(.rateLimited(retryAfter: nil), last: last, now: now), "Rate limited. Next refresh in 5 min.")
+        XCTAssertEqual(Formatting.claudeErrorMessage(.unauthorized, last: last, now: now), "Claude token expired. Open Claude Code to refresh it.")
+        XCTAssertEqual(Formatting.claudeErrorMessage(.rateLimited(retryAfter: nil), last: last, now: now), "Claude rate limited. Next refresh in 5 min.")
         XCTAssertEqual(Formatting.claudeErrorMessage(.rateLimited(retryAfter: 1622), last: last, now: now),
-                       "Rate limited. Next refresh in 27 min (server's Retry-After).")
+                       "Claude rate limited. Next refresh in 27 min (server's Retry-After).")
         XCTAssertEqual(Formatting.claudeErrorMessage(.rateLimited(retryAfter: 10), last: last, now: now),
-                       "Rate limited. Next refresh in 5 min (server's Retry-After).",
+                       "Claude rate limited. Next refresh in 5 min (server's Retry-After).",
                        "the message shows the wait the poller will actually take, floor applied")
-        XCTAssertEqual(Formatting.claudeErrorMessage(.http(500), last: last, now: now), "Usage API error (HTTP 500). Last updated 3 min ago.")
-        XCTAssertEqual(Formatting.claudeErrorMessage(.http(500), last: nil, now: now), "Usage API error (HTTP 500).")
-        XCTAssertEqual(Formatting.claudeErrorMessage(.decoding, last: last, now: now), "Unexpected response from the usage API. Last updated 3 min ago.")
-        XCTAssertEqual(Formatting.claudeErrorMessage(.offline, last: last, now: now), "Offline. Last updated 3 min ago.")
-        XCTAssertEqual(Formatting.claudeErrorMessage(.offline, last: nil, now: now), "Offline.")
+        XCTAssertEqual(Formatting.claudeErrorMessage(.http(500), last: last, now: now), "Claude usage API error (HTTP 500). Last updated 3 min ago.")
+        XCTAssertEqual(Formatting.claudeErrorMessage(.http(500), last: nil, now: now), "Claude usage API error (HTTP 500).")
+        XCTAssertEqual(Formatting.claudeErrorMessage(.decoding, last: last, now: now), "Unexpected response from the Claude usage API. Last updated 3 min ago.")
+        XCTAssertEqual(Formatting.claudeErrorMessage(.offline, last: last, now: now), "Claude unreachable. Last updated 3 min ago.")
+        XCTAssertEqual(Formatting.claudeErrorMessage(.offline, last: nil, now: now), "Claude unreachable.")
+    }
+
+    func testEveryErrorMessageNamesTheProvider() {
+        // In a three-provider menu a bare "Offline." does not say whose. Claude's messages used
+        // to be the unqualified ones, because it was the only provider when they were written.
+        let errors: [UsageError] = [.notSignedIn, .unauthorized, .rateLimited(retryAfter: nil), .http(500), .decoding, .offline]
+        for error in errors {
+            let message = Formatting.claudeErrorMessage(error, last: nil, now: now)
+            XCTAssertTrue(message.contains("Claude"), "\(error) produced \"\(message)\", which does not name the provider")
+        }
     }
 
     func testTooltipLoaded() {
@@ -127,7 +158,7 @@ final class FormattingClaudeTests: XCTestCase {
     func testTooltipFailedWithLastSnapshotStartsWithError() {
         let snapshot = ClaudeUsageSnapshot(buckets: [ClaudeUsageBucket(kind: .session, percent: 25, resetsAt: nil)], fetchedAt: now.addingTimeInterval(-180))
         XCTAssertEqual(Formatting.tooltip(claude: .failed(.offline, last: snapshot), now: now, timeZone: tz, locale: locale), """
-        Offline. Last updated 3 min ago.
+        Claude unreachable. Last updated 3 min ago.
         Session (5h): 25%
         Updated 3 min ago
         """)
@@ -137,8 +168,19 @@ final class FormattingClaudeTests: XCTestCase {
         // Not "Loading Claude usage…": with three providers the tooltip cannot say whose numbers
         // are still on the way.
         XCTAssertEqual(Formatting.tooltip(claude: .idle, now: now, timeZone: tz, locale: locale), "Loading usage…")
+        // Nothing else has anything to say, so the missing login comes back rather than leaving
+        // the tooltip blank.
         XCTAssertEqual(Formatting.tooltip(claude: .failed(.notSignedIn, last: nil), now: now, timeZone: tz, locale: locale),
                        "Not signed in to Claude Code. Run `claude` in a terminal and log in.")
+    }
+
+    func testTooltipStaysQuietAboutAMissingClaudeLoginWhenAnotherProviderHasNumbers() {
+        // The gate ChatGPT and OpenRouter already had. On a Mac that never signed in to Claude
+        // Code, the line was previously repeated on every hover next to working numbers.
+        let credits = OpenRouterCreditsSnapshot(totalCredits: 20, totalUsage: 7.66, fetchedAt: now)
+        let text = Formatting.tooltip(claude: .failed(.notSignedIn, last: nil), openRouter: .loaded(credits), now: now)
+        XCTAssertFalse(text.contains("Not signed in to Claude Code"), text)
+        XCTAssertTrue(text.contains("OpenRouter credits:"), text)
     }
 
     func testClaudeUsagePageURL() {
