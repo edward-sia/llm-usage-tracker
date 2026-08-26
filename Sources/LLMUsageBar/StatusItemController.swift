@@ -65,7 +65,13 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
     private func titleGroups() -> [TitleGroup] {
         var groups: [TitleGroup] = []
         if preferences.showClaudeUsage {
-            groups.append(TitleGroup(icon: ProviderIcons.claude(), segments: Formatting.claudeTitleSegments(for: state)))
+            // Claude drops out of the title when it has nothing to say, the same as the other
+            // two. It used to sit there reading "not signed in" even when ChatGPT and OpenRouter
+            // were working, which made one provider's missing login look like the app's.
+            let segments = Formatting.claudeTitleSegments(for: state)
+            if !segments.isEmpty {
+                groups.append(TitleGroup(icon: ProviderIcons.claude(), segments: segments))
+            }
         }
         if preferences.showChatGPTUsage {
             // The logo identifies the provider, so the window labels ("5h", "W") are the only text.
@@ -84,10 +90,20 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
         return groups
     }
 
+    /// Why the title came out empty. Only consulted when it did. One entry per provider the user
+    /// has switched on; the decision itself lives in Core so it is unit-tested.
+    private func emptyTitle() -> Formatting.EmptyTitle {
+        var loading: [Bool] = []
+        if preferences.showClaudeUsage { loading.append(state == .idle) }
+        if preferences.showChatGPTUsage { loading.append(chatGPTState == .idle) }
+        if preferences.showOpenRouterCredits { loading.append(creditsState == .idle) }
+        return Formatting.emptyTitle(loadingByVisibleProvider: loading)
+    }
+
     private func render(_ state: FetchState<ClaudeUsageSnapshot>) {
         self.state = state
         guard let button = statusItem.button else { return }
-        button.attributedTitle = Self.attributedTitle(groups: titleGroups())
+        button.attributedTitle = Self.attributedTitle(groups: titleGroups(), whenEmpty: emptyTitle())
         // Re-added on every render so the tracking rect follows the title's width. The tooltip
         // text itself is computed lazily in `view(_:stringForToolTip:point:userData:)` at hover
         // time, so the "Updated N s ago" text is never stale between polls.
@@ -100,7 +116,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
 
     func view(_ view: NSView, stringForToolTip tag: NSView.ToolTipTag, point: NSPoint, userData data: UnsafeMutableRawPointer?) -> String {
         guard preferences.showClaudeUsage || preferences.showChatGPTUsage || preferences.showOpenRouterCredits else {
-            return "Claude, ChatGPT, and OpenRouter are all hidden. Show one again from this menu."
+            return "Every provider is hidden. Show one again from this menu."
         }
         // A hidden provider goes in as .idle, which Formatting treats as nothing to say.
         return Formatting.tooltip(
@@ -115,7 +131,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
     /// starts with its logo, so a dot between groups would read as part of the numbers.
     static let groupGap = "  "
 
-    static func attributedTitle(groups: [TitleGroup]) -> NSAttributedString {
+    static func attributedTitle(groups: [TitleGroup], whenEmpty: Formatting.EmptyTitle = .loading) -> NSAttributedString {
         let font = NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
         let result = NSMutableAttributedString()
         for group in groups {
@@ -134,11 +150,21 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
             }
         }
         if result.length == 0 {
-            // Every provider hidden: keep a small clickable glyph so the menu stays reachable.
-            if let gauge = ProviderIcons.hiddenPlaceholder() {
-                result.append(attachmentString(for: gauge, font: font))
-            } else {
-                result.append(NSAttributedString(string: "–", attributes: [.font: font, .foregroundColor: NSColor.labelColor]))
+            switch whenEmpty {
+            case .allHidden:
+                // Keep a small clickable glyph so the menu stays reachable.
+                if let gauge = ProviderIcons.hiddenPlaceholder() {
+                    result.append(attachmentString(for: gauge, font: font))
+                } else {
+                    result.append(NSAttributedString(string: "–", attributes: [.font: font, .foregroundColor: NSColor.labelColor]))
+                }
+            case .loading:
+                result.append(NSAttributedString(string: "…", attributes: [.font: font, .foregroundColor: NSColor.labelColor]))
+            case .nothingSignedIn:
+                // Said once for the app rather than once per provider: with nothing signed in
+                // anywhere, naming a single provider would just be the first one in the list.
+                result.append(NSAttributedString(string: "\(Formatting.warningGlyph) not signed in",
+                                                 attributes: [.font: font, .foregroundColor: color(for: .warning)]))
             }
         }
         return result
@@ -192,16 +218,15 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
     }
 
     /// True when the menu already says something for itself: numbers from a visible provider, or
-    /// an error line that appears regardless.
+    /// a real failure, which is a line that appears regardless.
     ///
-    /// Not having credentials for ChatGPT or OpenRouter is the normal state on most Macs, so that
-    /// line is noise beside anything else worth reading — it earns a place only when the menu
-    /// would otherwise not explain itself. Claude's error line is never gated, so *any* Claude
-    /// error counts here; for the optional providers only a real failure does, since their
-    /// "not signed in" line is the one being gated.
+    /// Not having credentials for a given provider is the normal state on most Macs, so that line
+    /// is noise beside anything else worth reading — it earns a place only when the menu would
+    /// otherwise not explain itself. That gate now covers Claude too, so only a real failure
+    /// counts here for any of the three.
     private var menuExplainsItself: Bool {
         anyVisibleSnapshot
-            || (preferences.showClaudeUsage && state.error != nil)
+            || (preferences.showClaudeUsage && isFailure(state.error))
             || (preferences.showChatGPTUsage && isFailure(chatGPTState.error))
             || (preferences.showOpenRouterCredits && isFailure(creditsState.error))
     }
@@ -220,7 +245,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
         let showChatGPT = preferences.showChatGPTUsage
         let showOpenRouter = preferences.showOpenRouterCredits
 
-        if showClaude, let error = state.error {
+        if showClaude, let error = state.error,
+           error != .notSignedIn || !menuExplainsItself {
             addDisabled(Formatting.claudeErrorMessage(error, last: state.snapshot, now: now))
             menu.addItem(.separator())
         }
@@ -264,7 +290,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
             menu.addItem(.separator())
             addDisabled("Updated \(Formatting.agoText(since: updatedAt, now: now))")
         } else if !showClaude && !showChatGPT && !showOpenRouter {
-            addDisabled("Claude, ChatGPT, and OpenRouter credits are hidden")
+            addDisabled("Every provider is hidden")
             menu.addItem(.separator())
         } else if !anyVisibleError {
             // Every visible provider is still on its first fetch.

@@ -110,6 +110,31 @@ extension Formatting {
         }
     }
 
+    // MARK: Empty title
+
+    /// Why the menu bar title came out with nothing in it. Every provider drops out of the title
+    /// when it has nothing to say, so the app explains an empty title once instead of each
+    /// provider explaining itself.
+    public enum EmptyTitle: Equatable, Sendable {
+        /// Some visible provider is still on its first fetch.
+        case loading
+        /// Nothing is loading and no visible provider found a credential to read.
+        case nothingSignedIn
+        /// Every provider is switched off in the click menu.
+        case allHidden
+    }
+
+    /// `loadingByVisibleProvider` carries one entry per provider the user has switched on: true
+    /// when that provider is still on its first fetch. Providers switched off are left out.
+    ///
+    /// Loading wins over `nothingSignedIn` because it is the transient answer — a provider still
+    /// fetching may yet produce numbers, and saying "not signed in" first would be wrong twice:
+    /// once now, and again a second later when the numbers arrive.
+    public static func emptyTitle(loadingByVisibleProvider: [Bool]) -> EmptyTitle {
+        if loadingByVisibleProvider.isEmpty { return .allHidden }
+        return loadingByVisibleProvider.contains(true) ? .loading : .nothingSignedIn
+    }
+
     // MARK: Credit balances
 
     /// Below these remaining-dollar amounts a credit balance turns amber / red. Shared rather
@@ -158,6 +183,9 @@ extension Formatting {
         // When it would leave the tooltip blank, say which provider is not signed in instead of
         // claiming to still be loading.
         if lines.isEmpty {
+            if case .failed(.notSignedIn, let last) = claude, last == nil {
+                lines.append(claudeErrorMessage(.notSignedIn, last: nil, now: now))
+            }
             if case .failed(.notSignedIn, let last) = chatGPT, last == nil {
                 lines.append(chatGPTErrorMessage(.notSignedIn, last: nil, now: now))
             }

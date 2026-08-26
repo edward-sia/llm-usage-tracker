@@ -7,10 +7,14 @@ moving on. Do not skip the verification steps.
 
 ## What you are installing
 
-A native macOS menu bar app that shows the user's Claude subscription usage
-(`5h 25% · W 26% · F 17%` behind the Claude logo) and, when the credentials are
-there to read, their ChatGPT usage (`5h 42% · W 8%` behind OpenAI's logo) and their
+A native macOS menu bar app that shows the user's LLM subscription usage and
+credit balances. It reads three providers, and shows each one only when the
+credential is there to read: Claude usage (`5h 25% · W 26% · F 17%` behind the
+Claude logo), ChatGPT usage (`5h 42% · W 8%` behind OpenAI's logo), and
 remaining OpenRouter credits (`$12.34` behind OpenRouter's logo).
+
+No provider is required. A user with only one of the three gets a working app
+showing that one, so do not treat a missing login as a failed install.
 
 Each provider reuses a login some other tool already made: the OAuth token Claude Code
 stores in the macOS Keychain, the ChatGPT token Codex stores in `~/.codex/auth.json`,
@@ -22,7 +26,8 @@ never writes to the Keychain or to any of those files, and never refreshes a tok
 - **Never print, echo, or log any of the credentials** — the Claude Code access token,
   the ChatGPT token inside `~/.codex/auth.json`, or the OpenRouter API key. No step here
   requires reading any of those values; do not add one that does. The check below tests
-  only whether the Codex auth file exists, and must stay that way.
+  only whether each credential is present — a file test, a Keychain lookup that discards
+  its output, and a grep for a variable name — and must stay that way.
 - Only run the commands below (or their obvious equivalents). Do not add
   network calls, credential reads, or `sudo`.
 - `make install` copies the app into `/Applications` and launches it. That is
@@ -38,25 +43,33 @@ it and stop rather than guessing.
 sw_vers -productVersion        # must be 14.0 or newer
 xcode-select -p                # must print a path (Command Line Tools installed)
 swift --version                # must succeed
-security find-generic-password -s "Claude Code-credentials" -w >/dev/null 2>&1 && echo "claude-code: signed in" || echo "claude-code: NOT signed in"
-test -f "${CODEX_HOME:-$HOME/.codex}/auth.json" && echo "chatgpt: codex login present" || echo "chatgpt: no codex login (optional)"
+security find-generic-password -s "Claude Code-credentials" -w >/dev/null 2>&1 && echo "claude: signed in" || echo "claude: no login"
+test -f "${CODEX_HOME:-$HOME/.codex}/auth.json" && echo "chatgpt: signed in" || echo "chatgpt: no login"
+grep -ls "OPENROUTER_API_KEY" "$HOME"/.zshrc "$HOME"/.zshenv "$HOME"/.zprofile "$HOME"/.bashrc "$HOME"/.bash_profile "$HOME"/.profile 2>/dev/null | grep -q . && echo "openrouter: key found" || echo "openrouter: no key"
 ```
 
 - macOS older than 14 → not supported; stop.
 - `xcode-select -p` fails → tell the user to run `xcode-select --install`, wait
   for it to finish, then retry. (This needs the user; you cannot complete the
   GUI installer for them.)
-- "claude-code: NOT signed in" → the app has nothing to read. Tell the user to
-  install [Claude Code](https://claude.com/claude-code) and run `claude` to log
-  in, then retry. (The file `~/.claude/.credentials.json` is an accepted
-  fallback if they use the file store.)
-- ChatGPT is optional. "no codex login" is fine — the ChatGPT segment simply does not
-  appear. To get it, the user signs in to the ChatGPT desktop app, or runs `codex` and
-  picks Sign in with ChatGPT. A Codex signed in with an API key instead of a ChatGPT
-  account has no subscription to report, so it shows nothing either.
-- OpenRouter is optional: no check needed. If the user has
-  `OPENROUTER_API_KEY` exported in a shell config file, the app finds it on
-  its own; if not, the OpenRouter segment simply does not appear.
+- **At least one provider must say "signed in" or "key found."** No single
+  provider is required, but with none of them the app has nothing to read and
+  the menu bar will just say `⚠︎ not signed in`. If all three come back empty,
+  tell the user how to set up whichever one they want and stop.
+- One or two providers missing is fine and needs no comment. Those segments do
+  not appear, and nothing else changes.
+- To add a missing one later: Claude is `claude` in a terminal, then log in (the
+  file `~/.claude/.credentials.json` is an accepted fallback if they use the file
+  store). ChatGPT is the ChatGPT desktop app, or `codex` → Sign in with ChatGPT —
+  note a Codex signed in with an API key rather than a ChatGPT account has no
+  subscription to report, so it shows nothing either. OpenRouter is
+  `export OPENROUTER_API_KEY=…` in a shell config file, which the app finds on
+  its own.
+- The OpenRouter check greps for the variable name and emits only filenames,
+  never the value. It must stay that way. It is written as `grep -l … | grep -q .`
+  rather than a plain `grep -q` because `grep -q` exits 2 when any file in the
+  list is missing, even when another file matched — and most Macs will not have
+  all six shell config files.
 
 ## Step 1: Get the code
 
@@ -94,12 +107,16 @@ codesign -dv /Applications/LLMUsageBar.app 2>&1 | grep -i "signature="   # Signa
 ```
 
 Then tell the user: **look at the top-right of your menu bar — you should see
-your usage numbers** (e.g. `5h 25% · W 26% · F 17%` behind the Claude logo, plus
-`5h 42% · W 8%` behind OpenAI's logo if they have a ChatGPT login, plus `$12.34` behind
-OpenRouter's logo if they have an OpenRouter key). It has no Dock icon by design. If the menu bar
-shows `⚠︎ not signed in`, Claude Code is not logged in (see Step 0). If it
-shows numbers followed by `⚠︎`, the last refresh failed — hover or click the
-item for the reason.
+your usage numbers**, one group per provider they have a login for. With all
+three that reads `5h 25% · W 26% · F 17%` behind the Claude logo, `5h 42% · W 8%`
+behind OpenAI's, and `$12.34` behind OpenRouter's. Expect only the groups that
+match what Step 0 found — a provider without a credential shows nothing at all,
+which is correct and not a failed install. It has no Dock icon by design.
+
+- `⚠︎ not signed in` → *no* provider has a credential. Step 0 should have caught
+  this; go back to it.
+- numbers followed by `⚠︎` → the last refresh failed. Hover or click for the
+  reason, which names the provider it belongs to.
 
 ## Step 5: Offer Launch at Login
 
