@@ -1,8 +1,4 @@
 APP := LLMUsageBar
-# The app was called ClaudeUsageBar until it grew past Claude. install and uninstall clear the
-# old bundle out too, so an upgrade does not leave two copies running side by side in the menu
-# bar. Safe to drop once nobody is upgrading from a pre-rename build.
-LEGACY_APP := ClaudeUsageBar
 BUNDLE := build/$(APP).app
 INSTALL_DIR := /Applications
 
@@ -26,18 +22,16 @@ run: bundle
 # Rebuild the bundle, copy to /Applications, and launch it.
 install: bundle
 	-pkill -x $(APP)
-	-pkill -x $(LEGACY_APP)
 	sleep 0.5
-	rm -rf $(INSTALL_DIR)/$(APP).app $(INSTALL_DIR)/$(LEGACY_APP).app
+	rm -rf $(INSTALL_DIR)/$(APP).app
 	cp -R $(BUNDLE) $(INSTALL_DIR)/
 	open $(INSTALL_DIR)/$(APP).app
 
-# Remove the installed app (and any pre-rename copy). Turn off Launch at login from the click
-# menu first if it was on, so macOS does not keep a login item pointing at a deleted bundle.
+# Remove the installed app. Turn off Launch at login from the click menu first if it was on,
+# so macOS does not keep a login item pointing at a deleted bundle.
 uninstall:
 	-pkill -x $(APP)
-	-pkill -x $(LEGACY_APP)
-	rm -rf $(INSTALL_DIR)/$(APP).app $(INSTALL_DIR)/$(LEGACY_APP).app
+	rm -rf $(INSTALL_DIR)/$(APP).app
 
 clean:
 	rm -rf .build build
