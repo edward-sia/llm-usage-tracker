@@ -7,7 +7,16 @@ cd "$(dirname "$0")/.."
 APP_NAME="LLMUsageBar"
 DISPLAY_NAME="LLM Usage Bar"
 BUNDLE_ID="${BUNDLE_ID:-dev.llm-usage-tracker.LLMUsageBar}"
-VERSION="${VERSION:-0.1.0}"
+# The bundle version follows the nearest release tag, so it cannot drift the way a
+# hardcoded default did: it sat at 0.1.0 through both the v0.1.1 and v0.2.0 releases.
+# FALLBACK_VERSION only covers a checkout with no tags to read - a source tarball, or
+# a clone that never fetched them. Set VERSION in the environment to override both.
+FALLBACK_VERSION="0.2.0"
+if [[ -z "${VERSION:-}" ]]; then
+  VERSION="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+  VERSION="${VERSION#v}"
+  VERSION="${VERSION:-$FALLBACK_VERSION}"
+fi
 BUILD_NUMBER="${BUILD_NUMBER:-1}"
 
 swift build -c release
