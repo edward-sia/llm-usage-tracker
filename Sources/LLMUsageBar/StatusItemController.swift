@@ -14,7 +14,6 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
     private var creditsState: FetchState<OpenRouterCreditsSnapshot> = .idle
     private var chatGPTState: FetchState<ChatGPTUsageSnapshot> = .idle
     private var isMenuOpen = false
-    private var appearanceObservation: NSKeyValueObservation?
 
     init(poller: UsagePoller<ClaudeUsageSnapshot, String>,
          creditsPoller: UsagePoller<OpenRouterCreditsSnapshot, String>,
@@ -42,14 +41,6 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
             guard let self else { return }
             self.chatGPTState = chatGPTState
             self.render(self.state)
-        }
-        // The provider icons are tinted when first drawn; re-render on appearance flips so a
-        // rasterization from the old appearance never lingers in the title.
-        appearanceObservation = statusItem.button?.observe(\.effectiveAppearance) { [weak self] _, _ in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                self.render(self.state)
-            }
         }
         render(.idle)
     }
@@ -100,6 +91,12 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSViewToolTipOwner {
         return Formatting.emptyTitle(loadingByVisibleProvider: loading)
     }
 
+    /// Called when a poller's state changes, and not otherwise. In particular there is no
+    /// appearance observer here: the icons follow light/dark on their own (see
+    /// `ProviderIcons.tinted`). Watching the button's `effectiveAppearance` to re-render looks
+    /// harmless but spins the CPU at 100%, because AppKit flips that same appearance while
+    /// rasterizing the status item's menu bar snapshot — so the observer re-renders, the new
+    /// title dirties the button, AppKit redraws the snapshot, and the observer fires again.
     private func render(_ state: FetchState<ClaudeUsageSnapshot>) {
         self.state = state
         guard let button = statusItem.button else { return }
