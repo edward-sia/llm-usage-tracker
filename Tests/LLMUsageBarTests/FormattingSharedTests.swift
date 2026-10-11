@@ -46,6 +46,20 @@ final class FormattingSharedTests: XCTestCase {
         XCTAssertEqual(Formatting.resetText(for: iso("2026-08-23T14:00:00Z"), now: now, timeZone: tz, locale: locale), "resets Mon 12:00\u{202F}AM")
     }
 
+    func testResetTextAWeekOrMoreAwayIncludesTheDate() {
+        // Sun 11 Oct 22:45 AEDT. The ChatGPT weekly window resets the following Sunday at 17:28:19 AEDT.
+        // "resets Sun 5:28 PM" alone reads as today, a time that has already passed.
+        let sundayNight = iso("2026-10-11T11:45:00Z")
+        let nextSunday = iso("2026-10-18T06:28:19Z")
+        XCTAssertEqual(Formatting.resetText(for: nextSunday, now: sundayNight, timeZone: tz, locale: locale), "resets Sun, Oct 18 at 5:28\u{202F}PM")
+        // Six days out the weekday names one day only, so it stays short.
+        let saturday = iso("2026-10-17T06:28:19Z")
+        XCTAssertEqual(Formatting.resetText(for: saturday, now: sundayNight, timeZone: tz, locale: locale), "resets Sat 5:28\u{202F}PM")
+        // A 30-day window (the free plan) is also far enough out to need the date.
+        let monthOut = iso("2026-11-10T06:28:19Z")
+        XCTAssertEqual(Formatting.resetText(for: monthOut, now: sundayNight, timeZone: tz, locale: locale), "resets Tue, Nov 10 at 5:28\u{202F}PM")
+    }
+
     func testResetTextForPastOrNil() {
         XCTAssertEqual(Formatting.resetText(for: now.addingTimeInterval(-60), now: now, timeZone: tz, locale: locale), "resets now")
         XCTAssertNil(Formatting.resetText(for: nil, now: now, timeZone: tz, locale: locale))

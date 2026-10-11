@@ -67,17 +67,24 @@ extension Formatting {
         return hours == 0 ? "\(remainder)m" : "\(hours)h \(remainder)m"
     }
 
-    /// nil → nil; past → "resets now"; within 24 h → "resets in 4h 22m"; else "resets Sun 11:59 PM"
-    /// (weekday + localized short time, 12/24-hour follows the locale).
+    /// nil → nil; past → "resets now"; within 24 h → "resets in 4h 22m"; within the next six
+    /// calendar days → "resets Sun 11:59 PM"; further out → "resets Sun, Oct 18 at 11:59 PM".
+    /// Weekday, date, and time are localized, and 12/24-hour follows the locale.
+    ///
+    /// A weekday alone only names one day when that day is less than a week away. A reset a week
+    /// out lands on today's weekday, so "Sun" on a Sunday would read as today.
     public static func resetText(for date: Date?, now: Date, timeZone: TimeZone = .current, locale: Locale = .current) -> String? {
         guard let date else { return nil }
         let interval = date.timeIntervalSince(now)
         if interval <= 0 { return "resets now" }
         if interval < 24 * 3600 { return "resets in \(countdown(to: date, from: now))" }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: now), to: calendar.startOfDay(for: date)).day ?? 0
         let formatter = DateFormatter()
         formatter.locale = locale
         formatter.timeZone = timeZone
-        formatter.setLocalizedDateFormatFromTemplate("EEE jmm")
+        formatter.setLocalizedDateFormatFromTemplate(days < 7 ? "EEE jmm" : "EEE d MMM jmm")
         return "resets \(formatter.string(from: date))"
     }
 
